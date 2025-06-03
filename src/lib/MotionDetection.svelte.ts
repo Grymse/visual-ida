@@ -182,23 +182,14 @@ export class MotionDetection {
 					const angleRadians = (this._options.movementAngle * Math.PI) / 180;
 
 					try {
-						if (this.motionDetector.process_motion_with_movement) {
-							this.motionDetector.process_motion_with_movement(
-								currentImageData.data,
-								this.previousImageData.data,
-								outputImageData.data,
-								this._options.motionDecayRate,
-								angleRadians,
-								this._options.movementSpeed
-							);
-						} else {
-							this.motionDetector.process_motion(
-								currentImageData.data,
-								this.previousImageData.data,
-								outputImageData.data,
-								this._options.motionDecayRate
-							);
-						}
+						this.motionDetector.process_motion_with_movement(
+							currentImageData.data,
+							this.previousImageData.data,
+							outputImageData.data,
+							this._options.motionDecayRate,
+							angleRadians,
+							this._options.movementSpeed
+						);
 					} catch (error) {
 						console.error('WASM motion detection error:', error);
 						this._state.hasError = true;
@@ -206,12 +197,7 @@ export class MotionDetection {
 						return;
 					}
 				} else {
-					// JavaScript fallback (if needed)
-					this.processMotionJavaScript(
-						currentImageData.data,
-						this.previousImageData.data,
-						outputImageData.data
-					);
+					console.error("WASM motion detector not initialized, no update available");
 				}
 
 				// Apply output to canvas
@@ -229,39 +215,6 @@ export class MotionDetection {
 			console.error('Motion detection processing error:', error);
 			this._state.hasError = true;
 			this._state.errorMessage = `Motion detection processing error: ${error}`;
-		}
-	}
-
-	// JavaScript fallback for motion detection
-	private processMotionJavaScript(
-		currentData: Uint8ClampedArray,
-		previousData: Uint8ClampedArray,
-		outputData: Uint8ClampedArray
-	) {
-		// Simple JavaScript motion detection fallback
-		for (let i = 0; i < currentData.length; i += 4) {
-			const currentR = currentData[i];
-			const currentG = currentData[i + 1];
-			const currentB = currentData[i + 2];
-
-			const previousR = previousData[i];
-			const previousG = previousData[i + 1];
-			const previousB = previousData[i + 2];
-
-			// Calculate difference
-			const diffR = Math.abs(currentR - previousR);
-			const diffG = Math.abs(currentG - previousG);
-			const diffB = Math.abs(currentB - previousB);
-
-			const avgDiff = (diffR + diffG + diffB) / 3;
-			const motion = avgDiff > this._options.motionThreshold ? 
-				Math.min(avgDiff * this._options.motionSensitivity, 255) : 0;
-
-			// Set grayscale motion output
-			outputData[i] = motion;
-			outputData[i + 1] = motion;
-			outputData[i + 2] = motion;
-			outputData[i + 3] = 255;
 		}
 	}
 

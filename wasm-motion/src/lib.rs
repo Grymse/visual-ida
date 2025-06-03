@@ -43,24 +43,6 @@ impl MotionDetector {
     }
 
     #[wasm_bindgen]
-    pub fn process_motion(
-        &mut self,
-        current_data: &[u8],
-        compare_data: &[u8],
-        output_data: &mut [u8],
-        decay_rate: f32,
-    ) {
-        self.process_motion_with_movement(
-            current_data,
-            compare_data,
-            output_data,
-            decay_rate,
-            0.0,
-            0.0,
-        );
-    }
-
-    #[wasm_bindgen]
     pub fn process_motion_with_movement(
         &mut self,
         current_data: &[u8],

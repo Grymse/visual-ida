@@ -61,9 +61,9 @@
 		};
 	});
 
-	/* setTimeout(() => {
-		startMotionDetection();
-	}, 200); */
+	setTimeout(() => {
+		motionDetection.start(videoElement, canvasElement);
+	}, 500);
 
 	onMount(() => {
 		initializeCamera();
