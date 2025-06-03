@@ -15,6 +15,54 @@
 	let motionPersistenceBuffer: number[] = []; // Buffer to store motion intensity for persistence
 	let motionDecayRate = 0.8; // How fast motion fades (0.85 = retains 85% each frame)
 
+	// Movement parameters for distorted motion effect
+	let movementAngle = 280; // Angle in degrees (0-360)
+	let movementSpeed = 40; // Speed in pixels per frame (0-10)
+
+	let angleAnimationTimeout: ReturnType<typeof setTimeout> | null = null;
+	let angleAnimationFrame: number | null = null;
+	let targetAngle = movementAngle;
+	let angleAnimationStart = 0;
+	let angleAnimationDuration = 0;
+	let angleAnimationFrom = movementAngle;
+	let angleAnimationTo = movementAngle;
+
+	function animateAngleChange() {
+		// Animate movementAngle from angleAnimationFrom to angleAnimationTo over angleAnimationDuration ms
+		const now = performance.now();
+		const elapsed = now - angleAnimationStart;
+		const t = Math.min(elapsed / angleAnimationDuration, 1);
+		movementAngle = angleAnimationFrom + (angleAnimationTo - angleAnimationFrom) * t;
+		if (t < 1) {
+			angleAnimationFrame = requestAnimationFrame(animateAngleChange);
+		} else {
+			movementAngle = angleAnimationTo;
+			angleAnimationFrame = null;
+			scheduleNextAngleChange();
+		}
+	}
+
+	function scheduleNextAngleChange() {
+		const delay = 5000 + Math.random() * 15000; // 5-20 seconds
+		angleAnimationTimeout = setTimeout(() => {
+			angleAnimationFrom = movementAngle;
+			angleAnimationTo = Math.floor(Math.random() * 361);
+			angleAnimationStart = performance.now();
+			angleAnimationDuration = 1500 + Math.random() * 1500; // 1.5-3s transition
+			if (angleAnimationFrame) cancelAnimationFrame(angleAnimationFrame);
+			angleAnimationFrame = requestAnimationFrame(animateAngleChange);
+		}, delay);
+	}
+
+	// Start the angle animation loop on mount
+	onMount(() => {
+		scheduleNextAngleChange();
+		return () => {
+			if (angleAnimationTimeout) clearTimeout(angleAnimationTimeout);
+			if (angleAnimationFrame) cancelAnimationFrame(angleAnimationFrame);
+		};
+	});
+
 	// WebAssembly imports
 	let MotionDetector: any = null;
 	let motionDetector: any = null;
@@ -65,7 +113,7 @@
 					width: { ideal: 1920 },
 					height: { ideal: 1080 },
 					facingMode: 'user',
-					frameRate: 15
+					frameRate: 20
 				}
 			});
 
@@ -194,11 +242,16 @@
 				// Use WebAssembly motion detection
 				if (useWasm && motionDetector) {
 					try {
-						motionDetector.process_motion(
+						// Convert angle from degrees to radians
+						const angleRadians = (movementAngle * Math.PI) / 180;
+
+						motionDetector.process_motion_with_movement(
 							currentImageData.data,
 							compareFrame.data,
 							diffImageData.data,
-							motionDecayRate
+							motionDecayRate,
+							angleRadians,
+							movementSpeed
 						);
 					} catch (error) {
 						console.warn('WASM motion detection failed:', error);
@@ -345,6 +398,35 @@
 					<p>
 						Active: {activeFilters.map((id) => filters.find((f) => f.id === id)?.name).join(', ')}
 					</p>
+				</div>
+			{/if}
+
+			{#if motionDetectionActive}
+				<div class="motion-controls">
+					<h4>Motion Movement</h4>
+					<div class="control-group">
+						<label for="movement-angle">Angle: {movementAngle}°</label>
+						<input
+							id="movement-angle"
+							type="range"
+							min="0"
+							max="360"
+							bind:value={movementAngle}
+							class="slider"
+						/>
+					</div>
+					<div class="control-group">
+						<label for="movement-speed">Speed: {movementSpeed.toFixed(1)}</label>
+						<input
+							id="movement-speed"
+							type="range"
+							min="0"
+							max="10"
+							step="0.1"
+							bind:value={movementSpeed}
+							class="slider"
+						/>
+					</div>
 				</div>
 			{/if}
 
@@ -497,6 +579,59 @@
 
 	.active-filters p {
 		margin: 0;
+	}
+
+	.motion-controls {
+		margin-top: 15px;
+		padding-top: 15px;
+		border-top: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.motion-controls h4 {
+		margin: 0 0 10px 0;
+		color: rgba(255, 255, 255, 0.9);
+		font-size: 14px;
+	}
+
+	.control-group {
+		margin-bottom: 10px;
+	}
+
+	.control-group label {
+		display: block;
+		color: rgba(255, 255, 255, 0.8);
+		font-size: 12px;
+		margin-bottom: 5px;
+	}
+
+	.slider {
+		width: 100%;
+		height: 4px;
+		border-radius: 2px;
+		background: rgba(255, 255, 255, 0.2);
+		outline: none;
+		-webkit-appearance: none;
+	}
+
+	.slider::-webkit-slider-thumb {
+		-webkit-appearance: none;
+		appearance: none;
+		width: 16px;
+		height: 16px;
+		border-radius: 50%;
+		background: rgba(74, 144, 226, 1);
+		cursor: pointer;
+		box-shadow: 0 0 5px rgba(74, 144, 226, 0.5);
+	}
+
+	.slider::-moz-range-thumb {
+		width: 16px;
+		height: 16px;
+		border-radius: 50%;
+		background: rgba(74, 144, 226, 1);
+		cursor: pointer;
+		border: none;
+		box-shadow: 0 0 5px rgba(74, 144, 226, 0.5);
 	}
 
 	.performance-status {

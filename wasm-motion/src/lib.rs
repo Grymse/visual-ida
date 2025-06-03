@@ -50,8 +50,97 @@ impl MotionDetector {
         output_data: &mut [u8],
         decay_rate: f32,
     ) {
+        self.process_motion_with_movement(
+            current_data,
+            compare_data,
+            output_data,
+            decay_rate,
+            0.0,
+            0.0,
+        );
+    }
+
+    #[wasm_bindgen]
+    pub fn process_motion_with_movement(
+        &mut self,
+        current_data: &[u8],
+        compare_data: &[u8],
+        output_data: &mut [u8],
+        decay_rate: f32,
+        angle_radians: f32,
+        speed: f32,
+    ) {
         let width = self.width as usize;
         let height = self.height as usize;
+
+        // Calculate movement offset
+        let move_x = angle_radians.cos() * speed;
+        let move_y = angle_radians.sin() * speed;
+
+        // Create a temporary buffer for the moved persistence data
+        let mut moved_persistence_buffer = vec![0.0; self.persistence_buffer.len()];
+
+        // Apply movement to the persistence buffer if speed > 0
+        if speed > 0.0 {
+            for y in 0..height {
+                for x in 0..width {
+                    let source_x = x as f32 - move_x;
+                    let source_y = y as f32 - move_y;
+
+                    // Check if the source coordinates are within bounds
+                    if source_x >= 0.0
+                        && source_x < width as f32
+                        && source_y >= 0.0
+                        && source_y < height as f32
+                    {
+                        let source_x_int = source_x as usize;
+                        let source_y_int = source_y as usize;
+
+                        // Bilinear interpolation for smoother movement
+                        let fx = source_x - source_x_int as f32;
+                        let fy = source_y - source_y_int as f32;
+
+                        let source_index = source_y_int * width + source_x_int;
+                        let target_index = y * width + x;
+
+                        // Get the four surrounding pixels for interpolation
+                        let val_00 = if source_x_int < width && source_y_int < height {
+                            self.persistence_buffer[source_index]
+                        } else {
+                            0.0
+                        };
+
+                        let val_10 = if source_x_int + 1 < width && source_y_int < height {
+                            self.persistence_buffer[source_index + 1]
+                        } else {
+                            0.0
+                        };
+
+                        let val_01 = if source_x_int < width && source_y_int + 1 < height {
+                            self.persistence_buffer[source_index + width]
+                        } else {
+                            0.0
+                        };
+
+                        let val_11 = if source_x_int + 1 < width && source_y_int + 1 < height {
+                            self.persistence_buffer[source_index + width + 1]
+                        } else {
+                            0.0
+                        };
+
+                        // Bilinear interpolation
+                        let val_0 = val_00 * (1.0 - fx) + val_10 * fx;
+                        let val_1 = val_01 * (1.0 - fx) + val_11 * fx;
+                        let interpolated_val = val_0 * (1.0 - fy) + val_1 * fy;
+
+                        moved_persistence_buffer[target_index] = interpolated_val;
+                    }
+                }
+            }
+        } else {
+            // No movement, copy the original buffer
+            moved_persistence_buffer.copy_from_slice(&self.persistence_buffer);
+        }
 
         // Parallel processing using chunks for better cache performance
         for y in 0..height {
@@ -102,7 +191,7 @@ impl MotionDetector {
                 let enhanced_diff = (filtered_diff * (1.5 + radial_sensitivity * 0.5)).min(255.0);
 
                 // Apply persistence: combine current motion with decaying previous motion
-                let previous_persistence = self.persistence_buffer[pixel_index];
+                let previous_persistence = moved_persistence_buffer[pixel_index];
                 let persisted_motion = enhanced_diff.max(previous_persistence * decay_rate);
 
                 // Update persistence buffer
