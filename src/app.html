@@ -16,6 +16,25 @@
 				overflow: hidden;
 			}
 		</style>
+		<!-- Load WebAssembly module globally -->
+		<script type="module">
+			// Load the WASM module and make it globally available
+			import init, { MotionDetector } from '/wasm/motion_detection.js';
+			
+			async function loadWasm() {
+				try {
+					await init();
+					window.WasmMotionDetector = MotionDetector;
+					window.wasmLoaded = true;
+					console.log('✅ WebAssembly module loaded globally');
+				} catch (error) {
+					console.warn('⚠️ Failed to load WebAssembly module:', error);
+					window.wasmLoaded = false;
+				}
+			}
+			
+			loadWasm();
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

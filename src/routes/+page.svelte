@@ -6,16 +6,51 @@
 	let errorMessage: string | null = null;
 	let isLoading = true;
 	let showFilters = false;
-	let activeFilters: string[] = [];
+	let activeFilters: string[] = ['blue-tone', 'neon'];
 	let motionDetectionActive = false;
 	let radialFocusActive = false;
 	let animationFrameId: number;
 	let previousImageData: ImageData | null = null;
 	let frameBuffer: ImageData[] = []; // Buffer to store multiple frames for averaging
 	let motionPersistenceBuffer: number[] = []; // Buffer to store motion intensity for persistence
-	let motionDecayRate = 0.2; // How fast motion fades (0.85 = retains 85% each frame)
+	let motionDecayRate = 0.8; // How fast motion fades (0.85 = retains 85% each frame)
+
+	// WebAssembly imports
+	let MotionDetector: any = null;
+	let motionDetector: any = null;
+	let useWasm = false;
+
+	setTimeout(() => {
+		startMotionDetection();
+	}, 200);
 
 	onMount(async () => {
+		// Check if WebAssembly module was loaded globally
+		const checkWasm = () => {
+			if ((window as any).wasmLoaded && (window as any).WasmMotionDetector) {
+				MotionDetector = (window as any).WasmMotionDetector;
+				useWasm = true;
+				console.log('✅ Using globally loaded WebAssembly module');
+				return true;
+			}
+			return false;
+		};
+
+		// Try to get WASM immediately, or wait for it to load
+		if (!checkWasm()) {
+			// Wait up to 2 seconds for WASM to load
+			let attempts = 0;
+			const maxAttempts = 20;
+			const interval = setInterval(() => {
+				attempts++;
+				if (checkWasm() || attempts >= maxAttempts) {
+					clearInterval(interval);
+					if (!useWasm) {
+						console.warn('⚠️ WebAssembly module not available, using JavaScript fallback');
+					}
+				}
+			}, 100);
+		}
 		console.log('Starting camera initialization...');
 
 		try {
@@ -29,7 +64,8 @@
 				video: {
 					width: { ideal: 1920 },
 					height: { ideal: 1080 },
-					facingMode: 'user'
+					facingMode: 'user',
+					frameRate: 15
 				}
 			});
 
@@ -70,7 +106,7 @@
 		{ id: 'green-tone', name: 'Green Tone', css: 'sepia(1) hue-rotate(90deg) saturate(2)' },
 		{ id: 'grayscale', name: 'Grayscale', css: 'grayscale(1)' },
 		{ id: 'sepia', name: 'Sepia', css: 'sepia(1)' },
-		{ id: 'blur', name: 'Blur', css: 'blur(2px)' },
+		{ id: 'blur', name: 'Blur', css: 'blur(1px)' },
 		{ id: 'contrast', name: 'High Contrast', css: 'contrast(2)' },
 		{ id: 'brightness', name: 'Bright', css: 'brightness(1.5)' },
 		{ id: 'vintage', name: 'Vintage', css: 'sepia(0.8) contrast(1.2) brightness(1.1)' },
@@ -120,6 +156,18 @@
 		const bufferSize = canvasElement.width * canvasElement.height;
 		motionPersistenceBuffer = Array.from({ length: bufferSize }, () => 0);
 
+		// Initialize WebAssembly motion detector if available
+		if (useWasm && MotionDetector) {
+			try {
+				motionDetector = new MotionDetector(canvasElement.width, canvasElement.height);
+				console.log('🚀 Using WebAssembly motion detection');
+			} catch (error) {
+				console.warn('Failed to initialize WASM motion detector:', error);
+				useWasm = false;
+				motionDetector = null;
+			}
+		}
+
 		function processFrame() {
 			if (!motionDetectionActive || !ctx) return;
 
@@ -143,76 +191,23 @@
 				// Calculate difference between current and comparison frame
 				const diffImageData = ctx.createImageData(canvasElement.width, canvasElement.height);
 
-				// Pre-calculate canvas dimensions and constants
-				const width = canvasElement.width;
-				const height = canvasElement.height;
-				const centerX = width / 2;
-				const centerY = height / 2;
-				const maxRadiusSquared = centerX * centerX + centerY * centerY;
-				const invMaxRadius = 1 / Math.sqrt(maxRadiusSquared);
-
-				// Process pixels with optimized calculations
-				const currentData = currentImageData.data;
-				const compareData = compareFrame.data;
-				const diffData = diffImageData.data;
-
-				// Temporary buffer for current frame's motion
-				const currentMotion = Array.from({ length: width * height }, () => 0);
-
-				for (let y = 0; y < height; y++) {
-					const dySquared = (y - centerY) * (y - centerY);
-
-					for (let x = 0; x < width; x++) {
-						const pixelIndex = y * width + x;
-						const i = pixelIndex * 4;
-
-						// Optimized distance calculation
-						const dxSquared = (x - centerX) * (x - centerX);
-						const distanceSquared = dxSquared + dySquared;
-						const normalizedDistance = Math.sqrt(distanceSquared) * invMaxRadius;
-
-						// Create radial sensitivity mask - high sensitivity in center, low at edges
-						const radialSensitivity = Math.max(0.1, 1 - normalizedDistance * 0.9);
-
-						// Calculate the difference for RGB channels (optimized)
-						const rDiff = Math.abs(currentData[i] - compareData[i]);
-						const gDiff = Math.abs(currentData[i + 1] - compareData[i + 1]);
-						const bDiff = Math.abs(currentData[i + 2] - compareData[i + 2]);
-
-						// Use the average difference
-						const avgDiff = (rDiff + gDiff + bDiff) * 0.33333;
-
-						// Apply radial weighting to the difference
-						const radialWeightedDiff = avgDiff * radialSensitivity;
-
-						// Apply adaptive threshold based on distance from center
-						const adaptiveThreshold = 30 + normalizedDistance * 40;
-						const filteredDiff = radialWeightedDiff > adaptiveThreshold ? radialWeightedDiff : 0;
-
-						// Enhanced motion detection with radial focus
-						const enhancedDiff = Math.min(255, filteredDiff * (1.5 + radialSensitivity * 0.5));
-
-						// Store current motion for this pixel
-						currentMotion[pixelIndex] = enhancedDiff;
-
-						// Apply persistence: combine current motion with decaying previous motion
-						const persistedMotion = Math.max(
-							enhancedDiff,
-							motionPersistenceBuffer[pixelIndex] * motionDecayRate
+				// Use WebAssembly motion detection
+				if (useWasm && motionDetector) {
+					try {
+						motionDetector.process_motion(
+							currentImageData.data,
+							compareFrame.data,
+							diffImageData.data,
+							motionDecayRate
 						);
-
-						// Update persistence buffer
-						motionPersistenceBuffer[pixelIndex] = persistedMotion;
-
-						// Apply temporal smoothing to reduce jitter
-						const smoothedMotion = Math.min(255, persistedMotion);
-
-						// Set the difference as grayscale
-						diffData[i] = smoothedMotion;
-						diffData[i + 1] = smoothedMotion;
-						diffData[i + 2] = smoothedMotion;
-						diffData[i + 3] = 255;
+					} catch (error) {
+						console.warn('WASM motion detection failed:', error);
+						// Fall back to clearing the image if WASM fails
+						diffImageData.data.fill(0);
 					}
+				} else {
+					// No WebAssembly available - clear the image
+					diffImageData.data.fill(0);
 				}
 
 				// Display the difference image
@@ -258,6 +253,16 @@
 		}
 		previousImageData = null;
 		motionPersistenceBuffer = []; // Clear persistence buffer
+
+		// Clean up WASM resources
+		if (motionDetector) {
+			try {
+				motionDetector.free();
+			} catch (error) {
+				console.warn('Error freeing WASM motion detector:', error);
+			}
+			motionDetector = null;
+		}
 	}
 
 	function clearAllFilters() {
@@ -340,6 +345,12 @@
 					<p>
 						Active: {activeFilters.map((id) => filters.find((f) => f.id === id)?.name).join(', ')}
 					</p>
+				</div>
+			{/if}
+
+			{#if motionDetectionActive}
+				<div class="performance-status {useWasm ? 'wasm-enabled' : 'js-fallback'}">
+					<p>Motion Detection: {useWasm ? '🚀 WebAssembly' : '⚡ JavaScript'}</p>
 				</div>
 			{/if}
 		</div>
@@ -477,22 +488,6 @@
 		box-shadow: 0 0 10px rgba(147, 112, 219, 0.5);
 	}
 
-	.radial-overlay {
-		position: fixed;
-		top: 0;
-		left: 0;
-		width: 100vw;
-		height: 100vh;
-		pointer-events: none;
-		z-index: 5;
-		background: radial-gradient(
-			circle at center,
-			transparent 20%,
-			rgba(0, 0, 0, 0.25) 50%,
-			rgba(0, 0, 0, 0.5) 100%
-		);
-	}
-
 	.active-filters {
 		color: rgba(255, 255, 255, 0.8);
 		font-size: 12px;
@@ -502,6 +497,27 @@
 
 	.active-filters p {
 		margin: 0;
+	}
+
+	.performance-status {
+		color: rgba(255, 255, 255, 0.9);
+		font-size: 12px;
+		padding-top: 10px;
+		border-top: 1px solid rgba(255, 255, 255, 0.1);
+		text-align: center;
+	}
+
+	.performance-status.wasm-enabled {
+		color: #4ade80; /* Green for WebAssembly */
+	}
+
+	.performance-status.js-fallback {
+		color: #fb923c; /* Orange for JavaScript fallback */
+	}
+
+	.performance-status p {
+		margin: 0;
+		font-weight: 500;
 	}
 
 	.loading,
