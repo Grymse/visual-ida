@@ -151,7 +151,7 @@
 						<input
 							id="motion-threshold"
 							type="range"
-							min="10"
+							min="1"
 							max="100"
 							step="1"
 							value={motionThreshold}

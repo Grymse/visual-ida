@@ -1,3 +1,4 @@
+
 export interface MotionDetectionOptions {
 	motionDecayRate: number;
 	movementAngle: number;
@@ -178,17 +179,18 @@ export class MotionDetection {
 				const outputImageData = ctx.createImageData(this.canvasElement.width, this.canvasElement.height);
 
 				if (this.motionDetector) {
-					// Use WebAssembly for motion detection
-					const angleRadians = (this._options.movementAngle * Math.PI) / 180;
-
 					try {
 						this.motionDetector.process_motion_with_movement(
 							currentImageData.data,
 							this.previousImageData.data,
 							outputImageData.data,
-							this._options.motionDecayRate,
-							angleRadians,
-							this._options.movementSpeed
+							{
+								decay_rate: this._options.motionDecayRate,
+								angle_radians: this._options.movementAngle * (Math.PI / 180), // Convert degrees to radians
+								speed: this._options.movementSpeed,
+								threshold: this._options.motionThreshold,
+								sensitivity: this._options.motionSensitivity
+							}
 						);
 					} catch (error) {
 						console.error('WASM motion detection error:', error);
