@@ -220,6 +220,51 @@
 		min-width: 300px;
 		max-width: 400px;
 		border: 1px solid rgba(255, 255, 255, 0.1);
+		max-height: calc(100vh - 100px);
+		overflow-y: auto;
+	}
+
+	/* Mobile and tablet responsiveness */
+	@media (max-width: 768px) {
+		.filter-controls {
+			top: 10px;
+			right: 10px;
+			left: 10px;
+		}
+
+		.filter-toggle {
+			width: 100%;
+			padding: 10px 16px;
+			font-size: 14px;
+		}
+
+		.filters-panel {
+			position: fixed;
+			top: 60px;
+			left: 10px;
+			right: 10px;
+			min-width: unset;
+			max-width: unset;
+			padding: 15px;
+			max-height: calc(100vh - 80px);
+		}
+	}
+
+	@media (max-width: 480px) {
+		.filter-controls {
+			top: 5px;
+			right: 5px;
+			left: 5px;
+		}
+
+		.filters-panel {
+			top: 50px;
+			left: 5px;
+			right: 5px;
+			padding: 12px;
+			border-radius: 10px;
+			max-height: calc(100vh - 65px);
+		}
 	}
 
 	.filters-header {
@@ -244,10 +289,35 @@
 		cursor: pointer;
 		font-size: 12px;
 		transition: background 0.3s ease;
+		min-height: 32px;
+		display: flex;
+		align-items: center;
 	}
 
 	.clear-all:hover {
 		background: rgba(220, 53, 69, 1);
+	}
+
+	/* Mobile header improvements */
+	@media (max-width: 480px) {
+		.filters-header {
+			flex-direction: column;
+			align-items: stretch;
+			gap: 10px;
+			margin-bottom: 20px;
+		}
+
+		.filters-header h3 {
+			font-size: 20px;
+			text-align: center;
+		}
+
+		.clear-all {
+			font-size: 14px;
+			padding: 10px 16px;
+			min-height: 44px;
+			justify-content: center;
+		}
 	}
 
 	.filters-grid {
@@ -267,6 +337,24 @@
 		font-size: 14px;
 		transition: all 0.3s ease;
 		text-align: center;
+		min-height: 44px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	/* Mobile responsive grid */
+	@media (max-width: 480px) {
+		.filters-grid {
+			grid-template-columns: 1fr;
+			gap: 6px;
+		}
+
+		.filter-button {
+			padding: 12px 16px;
+			font-size: 16px;
+			min-height: 48px;
+		}
 	}
 
 	.filter-button:hover {
@@ -326,6 +414,23 @@
 		margin-bottom: 5px;
 	}
 
+	/* Mobile responsive motion controls */
+	@media (max-width: 480px) {
+		.motion-controls h4 {
+			font-size: 16px;
+			margin-bottom: 12px;
+		}
+
+		.control-group {
+			margin-bottom: 15px;
+		}
+
+		.control-group label {
+			font-size: 14px;
+			margin-bottom: 8px;
+		}
+	}
+
 	.slider {
 		width: 100%;
 		height: 4px;
@@ -357,6 +462,24 @@
 		box-shadow: 0 0 5px rgba(74, 144, 226, 0.5);
 	}
 
+	/* Mobile slider improvements */
+	@media (max-width: 480px) {
+		.slider {
+			height: 6px;
+			margin: 8px 0;
+		}
+
+		.slider::-webkit-slider-thumb {
+			width: 20px;
+			height: 20px;
+		}
+
+		.slider::-moz-range-thumb {
+			width: 20px;
+			height: 20px;
+		}
+	}
+
 	.performance-status {
 		color: rgba(255, 255, 255, 0.9);
 		font-size: 12px;
@@ -372,5 +495,37 @@
 	.performance-status p {
 		margin: 0;
 		font-weight: 500;
+	}
+
+	/* Mobile improvements for status sections */
+	@media (max-width: 480px) {
+		.active-filters {
+			font-size: 14px;
+			padding-top: 15px;
+		}
+
+		.performance-status {
+			font-size: 14px;
+			padding-top: 15px;
+		}
+
+		.performance-status p {
+			font-size: 16px;
+		}
+	}
+
+	/* Touch improvements */
+	@media (hover: none) and (pointer: coarse) {
+		.filter-button:hover {
+			transform: none;
+		}
+
+		.filter-toggle:hover {
+			transform: none;
+		}
+
+		.clear-all:hover {
+			background: rgba(220, 53, 69, 0.8);
+		}
 	}
 </style>
