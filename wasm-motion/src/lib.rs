@@ -1,4 +1,5 @@
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsValue;
 
 // Import the `console.log` function from the `console` module for debugging
 #[wasm_bindgen]
@@ -48,12 +49,38 @@ impl MotionDetector {
         current_data: &[u8],
         compare_data: &[u8],
         output_data: &mut [u8],
-        decay_rate: f32,
-        angle_radians: f32,
-        speed: f32,
+        options: JsValue,
     ) {
         let width = self.width as usize;
         let height = self.height as usize;
+
+        // Extract values from the JavaScript object
+        let decay_rate = js_sys::Reflect::get(&options, &"decay_rate".into())
+            .unwrap_or(JsValue::from(0.95))
+            .as_f64()
+            .unwrap_or(0.95) as f32;
+
+        let angle_radians = js_sys::Reflect::get(&options, &"angle_radians".into())
+            .unwrap_or(JsValue::from(0.0))
+            .as_f64()
+            .unwrap_or(0.0) as f32;
+
+        let speed = js_sys::Reflect::get(&options, &"speed".into())
+            .unwrap_or(JsValue::from(0.0))
+            .as_f64()
+            .unwrap_or(0.0) as f32;
+
+        // Extract values from the JavaScript object
+        let threshold = js_sys::Reflect::get(&options, &"threshold".into())
+            .unwrap_or(JsValue::from(0.95))
+            .as_f64()
+            .unwrap_or(0.95) as f32;
+
+        // Extract values from the JavaScript object
+        let sensitivty = js_sys::Reflect::get(&options, &"sensitivty".into())
+            .unwrap_or(JsValue::from(0.95))
+            .as_f64()
+            .unwrap_or(0.95) as f32;
 
         // Calculate movement offset
         let move_x = angle_radians.cos() * speed;
@@ -162,7 +189,7 @@ impl MotionDetector {
                 let radial_weighted_diff = avg_diff * radial_sensitivity;
 
                 // Apply adaptive threshold based on distance from center
-                let adaptive_threshold = 30.0 + normalized_distance * 40.0;
+                let adaptive_threshold = threshold + normalized_distance * 40.0;
                 let filtered_diff = if radial_weighted_diff > adaptive_threshold {
                     radial_weighted_diff
                 } else {
@@ -170,7 +197,8 @@ impl MotionDetector {
                 };
 
                 // Enhanced motion detection with radial focus
-                let enhanced_diff = (filtered_diff * (1.5 + radial_sensitivity * 0.5)).min(255.0);
+                let enhanced_diff =
+                    (filtered_diff * (sensitivty + radial_sensitivity * 0.5)).min(255.0);
 
                 // Apply persistence: combine current motion with decaying previous motion
                 let previous_persistence = moved_persistence_buffer[pixel_index];
@@ -217,9 +245,22 @@ pub fn process_motion_simd(
     center_y: f32,
     inv_max_radius: f32,
     decay_rate: f32,
+    options: JsValue,
 ) {
     let width_usize = width as usize;
     let height_usize = height as usize;
+
+    // Extract values from the JavaScript object
+    let threshold = js_sys::Reflect::get(&options, &"threshold".into())
+        .unwrap_or(JsValue::from(0.95))
+        .as_f64()
+        .unwrap_or(0.95) as f32;
+
+    // Extract values from the JavaScript object
+    let sensitivty = js_sys::Reflect::get(&options, &"sensitivty".into())
+        .unwrap_or(JsValue::from(0.95))
+        .as_f64()
+        .unwrap_or(0.95) as f32;
 
     for y in 0..height_usize {
         let dy = y as f32 - center_y;
@@ -257,14 +298,15 @@ pub fn process_motion_simd(
                     * 0.33333;
 
                 let radial_weighted_diff = avg_diff * radial_sensitivity;
-                let adaptive_threshold = 30.0 + normalized_distance * 40.0;
+                let adaptive_threshold = threshold + normalized_distance * 40.0;
                 let filtered_diff = if radial_weighted_diff > adaptive_threshold {
                     radial_weighted_diff
                 } else {
                     0.0
                 };
 
-                let enhanced_diff = (filtered_diff * (1.5 + radial_sensitivity * 0.5)).min(255.0);
+                let enhanced_diff =
+                    (filtered_diff * (sensitivty + radial_sensitivity * 0.5)).min(255.0);
                 let persisted_motion =
                     enhanced_diff.max(persistence_buffer[pixel_index] * decay_rate);
 
