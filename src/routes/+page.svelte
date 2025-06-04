@@ -63,7 +63,7 @@
 
 	setTimeout(() => {
 		motionDetection.start(videoElement, canvasElement);
-	}, 500);
+	}, 1000);
 
 	onMount(() => {
 		initializeCamera();
