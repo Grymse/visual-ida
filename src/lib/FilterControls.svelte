@@ -159,7 +159,7 @@
 							class="slider"
 						/>
 					</div>
-					<div class="control-group">
+					<!-- <div class="control-group">
 						<label for="motion-sensitivity">Sensitivity: {motionSensitivity.toFixed(1)}</label>
 						<input
 							id="motion-sensitivity"
@@ -171,7 +171,7 @@
 							oninput={handleMotionSensitivityChange}
 							class="slider"
 						/>
-					</div>
+					</div> -->
 				</div>
 			{/if}
 
