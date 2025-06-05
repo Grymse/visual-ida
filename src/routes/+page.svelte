@@ -195,6 +195,11 @@
 		: 'none'};"
 ></canvas>
 
+<p style="position: absolute; color: yellow; top: 20px; left: 20px; z-index: 100;">
+	{motionDetection.state.fps}
+	{motionDetection.state.computeTime}ms
+</p>
+
 <FilterControls
 	bind:activeFilters
 	motionDetectionActive={motionDetection.state.isActive}

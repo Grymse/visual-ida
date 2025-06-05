@@ -11,6 +11,8 @@ export interface MotionDetectionState {
 	isActive: boolean;
 	hasError: boolean;
 	errorMessage: string | null;
+	fps: number;
+	computeTime: number;
 }
 
 export class MotionDetection {
@@ -18,6 +20,8 @@ export class MotionDetection {
 	private canvasElement: HTMLCanvasElement | null = null;
 	private animationFrameId: number = 0;
 	private previousImageData: ImageData | null = null;
+	private framesInCurrentSecond: number = 0;
+	private timeOfFrameSecond: number = 0;
 	
 	// WebAssembly
 	private MotionDetector: any = null;
@@ -27,7 +31,9 @@ export class MotionDetection {
 	private _state = $state<MotionDetectionState>({
 		isActive: false,
 		hasError: false,
-		errorMessage: null
+		errorMessage: null,
+		fps: 0,
+		computeTime: 0
 	});
 
 	// Options - using runes for reactivity
@@ -133,6 +139,17 @@ export class MotionDetection {
 		return true;
 	}
 
+	private countFrames() {
+		if (!this._state.isActive) return;
+		this.framesInCurrentSecond++;
+		const now = Date.now();
+		if (now - this.timeOfFrameSecond >= 1000) {
+			this._state.fps = this.framesInCurrentSecond;
+			this.framesInCurrentSecond = 0;
+			this.timeOfFrameSecond = now;
+		}
+	}
+
 	// Stop motion detection
 	stop() {
 		console.log('Stopping motion detection...');
@@ -169,6 +186,7 @@ export class MotionDetection {
 			return;
 		}
 
+		const before = Date.now();
 		try {
 			// Draw current video frame to canvas
 			ctx.drawImage(this.videoElement, 0, 0, this.canvasElement.width, this.canvasElement.height);
@@ -177,7 +195,6 @@ export class MotionDetection {
 			if (this.previousImageData) {
 				// Process motion detection
 				const outputImageData = ctx.createImageData(this.canvasElement.width, this.canvasElement.height);
-
 				if (this.motionDetector) {
 					try {
 						this.motionDetector.process_motion_with_movement(
@@ -208,6 +225,10 @@ export class MotionDetection {
 
 			// Store current frame for next comparison
 			this.previousImageData = currentImageData;
+			// Count frames for FPS calculation
+			this.countFrames();
+			// Update compute time
+			this._state.computeTime = Date.now() - before;
 
 			// Schedule next frame
 			if (this._state.isActive) {
