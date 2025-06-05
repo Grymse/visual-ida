@@ -68,6 +68,36 @@
 		const target = event.target as HTMLInputElement;
 		motionDetectionOptions.motionSensitivity = parseFloat(target.value);
 	}
+
+	function handleMoveTypeChange(event: Event) {
+		const target = event.target as HTMLSelectElement;
+		motionDetectionOptions.moveType = target.value as 'direction' | 'radial' | 'spiral' | 'wave';
+	}
+
+	function handleRotationSpeedChange(event: Event) {
+		const target = event.target as HTMLInputElement;
+		motionDetectionOptions.rotationSpeed = parseFloat(target.value);
+	}
+
+	function handleWaveAmplitudeChange(event: Event) {
+		const target = event.target as HTMLInputElement;
+		motionDetectionOptions.waveAmplitude = parseFloat(target.value);
+	}
+
+	function handleWaveFrequencyChange(event: Event) {
+		const target = event.target as HTMLInputElement;
+		motionDetectionOptions.waveFrequency = parseFloat(target.value);
+	}
+
+	function handleWavePhaseChange(event: Event) {
+		const target = event.target as HTMLInputElement;
+		motionDetectionOptions.wavePhase = parseFloat(target.value);
+	}
+
+	function handleWaveDirectionChange(event: Event) {
+		const target = event.target as HTMLSelectElement;
+		motionDetectionOptions.waveDirection = parseInt(target.value) as 0 | 1;
+	}
 </script>
 
 <!-- Filter Controls -->
@@ -106,31 +136,135 @@
 			{#if motionDetectionActive}
 				<div class="motion-controls">
 					<h4>Motion Movement</h4>
+
+					<!-- Move Type Selector -->
 					<div class="control-group">
-						<label for="movement-angle">Angle: {movementAngle}°</label>
-						<input
-							id="movement-angle"
-							type="range"
-							min="0"
-							max="360"
-							value={movementAngle}
-							oninput={handleMovementAngleChange}
-							class="slider"
-						/>
+						<label for="move-type">Effect Type:</label>
+						<select
+							id="move-type"
+							value={motionDetectionOptions.moveType}
+							onchange={handleMoveTypeChange}
+							class="select-input"
+						>
+							<option value="direction">Directional</option>
+							<option value="radial">Radial</option>
+							<option value="spiral">Spiral</option>
+							<option value="wave">Wave</option>
+						</select>
 					</div>
-					<div class="control-group">
-						<label for="movement-speed">Speed: {movementSpeed.toFixed(1)}</label>
-						<input
-							id="movement-speed"
-							type="range"
-							min="0"
-							max="100"
-							step="1"
-							value={movementSpeed}
-							oninput={handleMovementSpeedChange}
-							class="slider"
-						/>
-					</div>
+
+					<!-- Direction-specific controls -->
+					{#if motionDetectionOptions.moveType === 'direction'}
+						<div class="control-group">
+							<label for="movement-angle">Angle: {motionDetectionOptions.movementAngle}°</label>
+							<input
+								id="movement-angle"
+								type="range"
+								min="0"
+								max="360"
+								value={motionDetectionOptions.movementAngle}
+								oninput={handleMovementAngleChange}
+								class="slider"
+							/>
+						</div>
+					{/if}
+
+					<!-- Speed control (common for direction, radial, spiral) -->
+					{#if motionDetectionOptions.moveType !== 'wave'}
+						<div class="control-group">
+							<label for="movement-speed"
+								>Speed: {motionDetectionOptions.movementSpeed.toFixed(1)}</label
+							>
+							<input
+								id="movement-speed"
+								type="range"
+								min="-30"
+								max="100"
+								step="1"
+								value={motionDetectionOptions.movementSpeed}
+								oninput={handleMovementSpeedChange}
+								class="slider"
+							/>
+						</div>
+					{/if}
+
+					<!-- Spiral-specific controls -->
+					{#if motionDetectionOptions.moveType === 'spiral'}
+						<div class="control-group">
+							<label for="rotation-speed"
+								>Rotation Speed: {motionDetectionOptions.rotationSpeed.toFixed(3)}</label
+							>
+							<input
+								id="rotation-speed"
+								type="range"
+								min="-3.14"
+								max="3.14"
+								step="0.001"
+								value={motionDetectionOptions.rotationSpeed}
+								oninput={handleRotationSpeedChange}
+								class="slider"
+							/>
+						</div>
+					{/if}
+
+					<!-- Wave-specific controls -->
+					{#if motionDetectionOptions.moveType === 'wave'}
+						<div class="control-group">
+							<label for="wave-amplitude"
+								>Amplitude: {motionDetectionOptions.waveAmplitude.toFixed(1)}</label
+							>
+							<input
+								id="wave-amplitude"
+								type="range"
+								min="0"
+								max="500"
+								step="0.1"
+								value={motionDetectionOptions.waveAmplitude}
+								oninput={handleWaveAmplitudeChange}
+								class="slider"
+							/>
+						</div>
+						<div class="control-group">
+							<label for="wave-frequency"
+								>Frequency: {motionDetectionOptions.waveFrequency.toFixed(3)}</label
+							>
+							<input
+								id="wave-frequency"
+								type="range"
+								min="0.001"
+								max="2"
+								step="0.001"
+								value={motionDetectionOptions.waveFrequency}
+								oninput={handleWaveFrequencyChange}
+								class="slider"
+							/>
+						</div>
+						<div class="control-group">
+							<label for="wave-phase">Phase: {motionDetectionOptions.wavePhase.toFixed(2)}</label>
+							<input
+								id="wave-phase"
+								type="range"
+								min="0"
+								max="6.28"
+								step="0.01"
+								value={motionDetectionOptions.wavePhase}
+								oninput={handleWavePhaseChange}
+								class="slider"
+							/>
+						</div>
+						<div class="control-group">
+							<label for="wave-direction">Direction:</label>
+							<select
+								id="wave-direction"
+								value={motionDetectionOptions.waveDirection}
+								onchange={handleWaveDirectionChange}
+								class="select-input"
+							>
+								<option value="0">Horizontal</option>
+								<option value="1">Vertical</option>
+							</select>
+						</div>
+					{/if}
 
 					<h4>Motion Detection</h4>
 					<div class="control-group">
@@ -477,6 +611,39 @@
 		.slider::-moz-range-thumb {
 			width: 20px;
 			height: 20px;
+		}
+	}
+
+	.select-input {
+		width: 100%;
+		background: rgba(255, 255, 255, 0.1);
+		color: white;
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		padding: 8px 12px;
+		border-radius: 8px;
+		font-size: 14px;
+		outline: none;
+		transition: all 0.3s ease;
+	}
+
+	.select-input:focus {
+		background: rgba(255, 255, 255, 0.15);
+		border-color: rgba(74, 144, 226, 0.8);
+		box-shadow: 0 0 5px rgba(74, 144, 226, 0.3);
+	}
+
+	.select-input option {
+		background: rgba(0, 0, 0, 0.9);
+		color: white;
+		padding: 8px;
+	}
+
+	/* Mobile responsive select inputs */
+	@media (max-width: 480px) {
+		.select-input {
+			padding: 12px 16px;
+			font-size: 16px;
+			min-height: 44px;
 		}
 	}
 

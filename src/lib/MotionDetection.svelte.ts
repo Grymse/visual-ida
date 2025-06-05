@@ -5,6 +5,15 @@ export interface MotionDetectionOptions {
 	movementSpeed: number;
 	motionThreshold: number;
 	motionSensitivity: number;
+	// Movement type and specific parameters
+	moveType: 'direction' | 'radial' | 'spiral' | 'wave';
+	// Spiral parameters
+	rotationSpeed: number;
+	// Wave parameters  
+	waveAmplitude: number;
+	waveFrequency: number;
+	wavePhase: number;
+	waveDirection: 0 | 1; // 0 = horizontal, 1 = vertical
 }
 
 export interface MotionDetectionState {
@@ -21,7 +30,6 @@ export class MotionDetection {
 	private videoFrameCallbackId: number = 0;
 	private framesInCurrentSecond: number = 0;
 	private timeOfFrameSecond: number = 0;
-	
 	// WebAssembly
 	private MotionDetector: any = null;
 	private motionDetector: any = null;
@@ -41,7 +49,13 @@ export class MotionDetection {
 		movementAngle: 280,
 		movementSpeed: 40,
 		motionThreshold: 30,
-		motionSensitivity: 1.5
+		motionSensitivity: 1.5,
+		moveType: 'direction',
+		rotationSpeed: 0.1,
+		waveAmplitude: 5.0,
+		waveFrequency: 0.02,
+		wavePhase: 0.0,
+		waveDirection: 0
 	});
 
 	constructor() {}
@@ -187,6 +201,8 @@ export class MotionDetection {
 			return;
 		}
 
+		
+
 		const before = Date.now();
 		try {
 			// Draw current video frame to canvas
@@ -203,11 +219,17 @@ export class MotionDetection {
 						currentImageData.data,
 						outputImageData.data,
 						{
+							move_type: this._options.moveType,
 							decay_rate: this._options.motionDecayRate,
 							angle_radians: this._options.movementAngle * (Math.PI / 180),
 							speed: this._options.movementSpeed,
 							threshold: this._options.motionThreshold,
-							sensitivity: this._options.motionSensitivity
+							sensitivity: this._options.motionSensitivity,
+							rotation_speed: this._options.rotationSpeed,
+							amplitude: this._options.waveAmplitude,
+							frequency: this._options.waveFrequency,
+							phase_increment: this._options.wavePhase,
+							direction: this._options.waveDirection
 						}
 					);
 				} catch (error) {
