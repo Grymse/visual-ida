@@ -85,7 +85,7 @@
 					width: { ideal: 1920 },
 					height: { ideal: 1080 },
 					facingMode: 'user',
-					frameRate: fps
+					frameRate: 30
 				}
 			});
 

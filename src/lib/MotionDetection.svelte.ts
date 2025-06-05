@@ -132,25 +132,8 @@ export class MotionDetection {
 		}
 		// Reset state (no more previousImageData - cached in Rust now!)
 
-		// Start the motion detection loop synchronized with video frames
-		this.scheduleNextFrame();
+		this.processMotionDetection();
 		return true;
-	}
-
-	private scheduleNextFrame() {
-		if (this.videoElement && 'requestVideoFrameCallback' in this.videoElement) {
-			// Perfect sync with video frames (modern browsers)
-			this.videoFrameCallbackId = (this.videoElement as any).requestVideoFrameCallback(
-				(_now: number, _metadata: any) => {
-					this.processMotionDetection();
-				}
-			);
-		} else {
-			// Fallback for older browsers - still better than setTimeout
-			this.videoFrameCallbackId = requestAnimationFrame(() => {
-				this.processMotionDetection();
-			});
-		}
 	}
 
 	private countFrames() {
@@ -252,10 +235,16 @@ export class MotionDetection {
 			this._state.errorMessage = `Motion detection processing error: ${error}`;
 			return;
 		}
-
-		// Schedule next frame callback - synchronized with video frames!
-		if (this._state.isActive && this.videoElement) {
-			this.scheduleNextFrame();
+		
+		// Adaptive scheduling based on compute time and parameter changes
+		if (this._state.isActive) {
+			const computeTime = this._state.computeTime || 16; // Default to 16ms if not set
+			const targetFrameTime = 1000 / 20; // Targeting 20 FPS
+			const nextFrameDelay = Math.max(0, targetFrameTime - computeTime);
+			
+			setTimeout(() => {
+				this.processMotionDetection();
+			}, nextFrameDelay);
 		}
 	}
 
