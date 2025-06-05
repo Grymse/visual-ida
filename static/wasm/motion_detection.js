@@ -129,18 +129,15 @@ export class MotionDetector {
     }
     /**
      * @param {Uint8Array} current_data
-     * @param {Uint8Array} compare_data
      * @param {Uint8Array} output_data
      * @param {any} options
      */
-    process_motion_with_movement(current_data, compare_data, output_data, options) {
+    process_motion_with_cache(current_data, output_data, options) {
         const ptr0 = passArray8ToWasm0(current_data, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passArray8ToWasm0(compare_data, wasm.__wbindgen_malloc);
-        const len1 = WASM_VECTOR_LEN;
-        var ptr2 = passArray8ToWasm0(output_data, wasm.__wbindgen_malloc);
-        var len2 = WASM_VECTOR_LEN;
-        wasm.motiondetector_process_motion_with_movement(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2, output_data, options);
+        var ptr1 = passArray8ToWasm0(output_data, wasm.__wbindgen_malloc);
+        var len1 = WASM_VECTOR_LEN;
+        wasm.motiondetector_process_motion_with_cache(this.__wbg_ptr, ptr0, len0, ptr1, len1, output_data, options);
     }
     reset_persistence() {
         wasm.motiondetector_reset_persistence(this.__wbg_ptr);

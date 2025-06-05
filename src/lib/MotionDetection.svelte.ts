@@ -20,7 +20,6 @@ export class MotionDetection {
 	private canvasElement: HTMLCanvasElement | null = null;
 	private animationFrameId: number = 0;
 	private timeoutId: number = 0;
-	private previousImageData: ImageData | null = null;
 	private framesInCurrentSecond: number = 0;
 	private timeOfFrameSecond: number = 0;
 	private frameInterval: number = 1000 / 20; // 50ms for 20 FPS
@@ -133,8 +132,7 @@ export class MotionDetection {
 				return false;
 			}
 		}
-		// Reset state
-		this.previousImageData = null;
+		// Reset state (no more previousImageData - cached in Rust now!)
 
 		// Start the motion detection loop
 		this.processMotionDetection();
@@ -173,8 +171,7 @@ export class MotionDetection {
 			this.motionDetector = null;
 		}
 
-		// Reset state
-		this.previousImageData = null;
+		// Reset state (no more previousImageData - cached in Rust now!)
 		this._state.hasError = false;
 		this._state.errorMessage = null;
 	}
@@ -199,39 +196,37 @@ export class MotionDetection {
 			ctx.drawImage(this.videoElement, 0, 0, this.canvasElement.width, this.canvasElement.height);
 			const currentImageData = ctx.getImageData(0, 0, this.canvasElement.width, this.canvasElement.height);
 
-			if (this.previousImageData) {
-				// Process motion detection
-				const outputImageData = ctx.createImageData(this.canvasElement.width, this.canvasElement.height);
-				if (this.motionDetector) {
-					try {
-						this.motionDetector.process_motion_with_movement(
-							currentImageData.data,
-							this.previousImageData.data,
-							outputImageData.data,
-							{
-								decay_rate: this._options.motionDecayRate,
-								angle_radians: this._options.movementAngle * (Math.PI / 180), // Convert degrees to radians
-								speed: this._options.movementSpeed,
-								threshold: this._options.motionThreshold,
-								sensitivity: this._options.motionSensitivity
-							}
-						);
-					} catch (error) {
-						console.error('WASM motion detection error:', error);
-						this._state.hasError = true;
-						this._state.errorMessage = `WASM motion detection error: ${error}`;
-						return;
-					}
-				} else {
-					console.error("WASM motion detector not initialized, no update available");
+			// Create output buffer
+			const outputImageData = ctx.createImageData(this.canvasElement.width, this.canvasElement.height);
+			
+			if (this.motionDetector) {
+				try {
+					// Use the new method with internal frame caching (50% less data transfer!)
+					this.motionDetector.process_motion_with_cache(
+						currentImageData.data,
+						outputImageData.data,
+						{
+							decay_rate: this._options.motionDecayRate,
+							angle_radians: this._options.movementAngle * (Math.PI / 180),
+							speed: this._options.movementSpeed,
+							threshold: this._options.motionThreshold,
+							sensitivity: this._options.motionSensitivity
+						}
+					);
+				} catch (error) {
+					console.error('WASM motion detection error:', error);
+					this._state.hasError = true;
+					this._state.errorMessage = `WASM motion detection error: ${error}`;
+					return;
 				}
-
-				// Apply output to canvas
-				ctx.putImageData(outputImageData, 0, 0);
+			} else {
+				console.error("WASM motion detector not initialized, no update available");
 			}
 
-			// Store current frame for next comparison
-			this.previousImageData = currentImageData;
+			// Apply output to canvas
+			ctx.putImageData(outputImageData, 0, 0);
+
+			// No need to store frames - cached in Rust now!
 			// Count frames for FPS calculation
 			this.countFrames();
 			// Update compute time

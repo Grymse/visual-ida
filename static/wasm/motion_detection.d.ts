@@ -4,7 +4,7 @@ export function process_motion_simd(current_data: Uint8Array, compare_data: Uint
 export class MotionDetector {
   free(): void;
   constructor(width: number, height: number);
-  process_motion_with_movement(current_data: Uint8Array, compare_data: Uint8Array, output_data: Uint8Array, options: any): void;
+  process_motion_with_cache(current_data: Uint8Array, output_data: Uint8Array, options: any): void;
   reset_persistence(): void;
   get_buffer_size(): number;
 }
@@ -15,7 +15,7 @@ export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly __wbg_motiondetector_free: (a: number, b: number) => void;
   readonly motiondetector_new: (a: number, b: number) => number;
-  readonly motiondetector_process_motion_with_movement: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: any, i: any) => void;
+  readonly motiondetector_process_motion_with_cache: (a: number, b: number, c: number, d: number, e: number, f: any, g: any) => void;
   readonly motiondetector_reset_persistence: (a: number) => void;
   readonly motiondetector_get_buffer_size: (a: number) => number;
   readonly process_motion_simd: (a: number, b: number, c: number, d: number, e: number, f: number, g: any, h: number, i: number, j: any, k: number, l: number, m: number, n: number, o: number, p: number, q: any) => void;
