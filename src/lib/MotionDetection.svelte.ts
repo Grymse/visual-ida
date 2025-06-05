@@ -18,11 +18,9 @@ export interface MotionDetectionState {
 export class MotionDetection {
 	private videoElement: HTMLVideoElement | null = null;
 	private canvasElement: HTMLCanvasElement | null = null;
-	private animationFrameId: number = 0;
-	private timeoutId: number = 0;
+	private videoFrameCallbackId: number = 0;
 	private framesInCurrentSecond: number = 0;
 	private timeOfFrameSecond: number = 0;
-	private frameInterval: number = 1000 / 20; // 50ms for 20 FPS
 	
 	// WebAssembly
 	private MotionDetector: any = null;
@@ -134,9 +132,25 @@ export class MotionDetection {
 		}
 		// Reset state (no more previousImageData - cached in Rust now!)
 
-		// Start the motion detection loop
-		this.processMotionDetection();
+		// Start the motion detection loop synchronized with video frames
+		this.scheduleNextFrame();
 		return true;
+	}
+
+	private scheduleNextFrame() {
+		if (this.videoElement && 'requestVideoFrameCallback' in this.videoElement) {
+			// Perfect sync with video frames (modern browsers)
+			this.videoFrameCallbackId = (this.videoElement as any).requestVideoFrameCallback(
+				(_now: number, _metadata: any) => {
+					this.processMotionDetection();
+				}
+			);
+		} else {
+			// Fallback for older browsers - still better than setTimeout
+			this.videoFrameCallbackId = requestAnimationFrame(() => {
+				this.processMotionDetection();
+			});
+		}
 	}
 
 	private countFrames() {
@@ -155,14 +169,14 @@ export class MotionDetection {
 		console.log('Stopping motion detection...');
 		this._state.isActive = false;
 
-		if (this.animationFrameId) {
-			cancelAnimationFrame(this.animationFrameId);
-			this.animationFrameId = 0;
-		}
-
-		if (this.timeoutId) {
-			clearTimeout(this.timeoutId);
-			this.timeoutId = 0;
+		// Cancel video frame callback
+		if (this.videoFrameCallbackId) {
+			if (this.videoElement && 'cancelVideoFrameCallback' in this.videoElement) {
+				(this.videoElement as any).cancelVideoFrameCallback(this.videoFrameCallbackId);
+			} else {
+				cancelAnimationFrame(this.videoFrameCallbackId);
+			}
+			this.videoFrameCallbackId = 0;
 		}
 
 		// Clean up WASM resources
@@ -232,15 +246,16 @@ export class MotionDetection {
 			// Update compute time
 			this._state.computeTime = Date.now() - before;
 
-			// Schedule next frame at fixed framerate
-			if (this._state.isActive) {
-				const timeTillNextFrame = Math.max(this.frameInterval - this._state.computeTime, 0);
-				this.timeoutId = setTimeout(() => this.processMotionDetection(), timeTillNextFrame);
-			}
 		} catch (error) {
 			console.error('Motion detection processing error:', error);
 			this._state.hasError = true;
 			this._state.errorMessage = `Motion detection processing error: ${error}`;
+			return;
+		}
+
+		// Schedule next frame callback - synchronized with video frames!
+		if (this._state.isActive && this.videoElement) {
+			this.scheduleNextFrame();
 		}
 	}
 
