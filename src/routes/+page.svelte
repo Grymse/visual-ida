@@ -159,6 +159,14 @@
 			}
 		};
 	});
+
+	let maxComputeTime = $state(0);
+
+	$effect(() => {
+		if (motionDetection.state.computeTime) {
+			maxComputeTime = Math.max(maxComputeTime, motionDetection.state.computeTime);
+		}
+	});
 </script>
 
 <svelte:head>
@@ -198,6 +206,7 @@
 <p style="position: absolute; color: yellow; top: 20px; left: 20px; z-index: 100;">
 	{motionDetection.state.fps}
 	{motionDetection.state.computeTime}ms
+	<span style="color: red;">{maxComputeTime}</span>
 </p>
 
 <FilterControls

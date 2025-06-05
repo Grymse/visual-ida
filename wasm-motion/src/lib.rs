@@ -17,10 +17,12 @@ macro_rules! console_log {
 pub struct MotionDetector {
     width: u32,
     height: u32,
-    center_x: f32,
-    center_y: f32,
-    inv_max_radius: f32,
     persistence_buffer: Vec<f32>,
+    // Optimization #1: Pre-computed lookup tables
+    distance_lut: Vec<f32>,
+    radial_sensitivity_lut: Vec<f32>,
+    // Optimization #2: Reusable buffer to avoid allocations
+    temp_buffer: Vec<f32>,
 }
 
 #[wasm_bindgen]
@@ -33,13 +35,30 @@ impl MotionDetector {
         let inv_max_radius = 1.0 / max_radius;
         let buffer_size = (width * height) as usize;
 
+        // Pre-compute distance and radial sensitivity lookup tables
+        let mut distance_lut = Vec::with_capacity(buffer_size);
+        let mut radial_sensitivity_lut = Vec::with_capacity(buffer_size);
+
+        for y in 0..height {
+            for x in 0..width {
+                let dx = x as f32 - center_x;
+                let dy = y as f32 - center_y;
+                let distance_squared = dx * dx + dy * dy;
+                let normalized_distance = distance_squared.sqrt() * inv_max_radius;
+                let radial_sensitivity = (1.0 - normalized_distance * 0.9).max(0.1);
+
+                distance_lut.push(normalized_distance);
+                radial_sensitivity_lut.push(radial_sensitivity);
+            }
+        }
+
         MotionDetector {
             width,
             height,
-            center_x,
-            center_y,
-            inv_max_radius,
             persistence_buffer: vec![0.0; buffer_size],
+            distance_lut,
+            radial_sensitivity_lut,
+            temp_buffer: Vec::with_capacity(buffer_size),
         }
     }
 
@@ -77,7 +96,7 @@ impl MotionDetector {
             .unwrap_or(0.95) as f32;
 
         // Extract values from the JavaScript object
-        let sensitivty = js_sys::Reflect::get(&options, &"sensitivty".into())
+        let sensitivity = js_sys::Reflect::get(&options, &"sensitivity".into())
             .unwrap_or(JsValue::from(0.95))
             .as_f64()
             .unwrap_or(0.95) as f32;
@@ -86,11 +105,34 @@ impl MotionDetector {
         let move_x = angle_radians.cos() * speed;
         let move_y = angle_radians.sin() * speed;
 
-        // Create a temporary buffer for the moved persistence data
-        let mut moved_persistence_buffer = vec![0.0; self.persistence_buffer.len()];
+        // Reuse temp_buffer instead of allocating (Optimization #2)
+        self.temp_buffer.clear();
+        self.temp_buffer.resize(self.persistence_buffer.len(), 0.0);
 
         // Apply movement to the persistence buffer if speed > 0
-        if speed > 0.0 {
+        if speed > 1.0 {
+            // Optimization #3: Use simplified movement for higher speeds (better performance)
+            let move_x_int = move_x.round() as i32;
+            let move_y_int = move_y.round() as i32;
+
+            for pixel_index in 0..self.persistence_buffer.len() {
+                let x = (pixel_index % width) as i32;
+                let y = (pixel_index / width) as i32;
+
+                let source_x = x - move_x_int;
+                let source_y = y - move_y_int;
+
+                if source_x >= 0
+                    && source_x < width as i32
+                    && source_y >= 0
+                    && source_y < height as i32
+                {
+                    let source_index = (source_y as usize * width) + source_x as usize;
+                    self.temp_buffer[pixel_index] = self.persistence_buffer[source_index];
+                }
+            }
+        } else if speed > 0.0 {
+            // Use bilinear interpolation for low speeds (better quality)
             for y in 0..height {
                 for x in 0..width {
                     let source_x = x as f32 - move_x;
@@ -142,80 +184,74 @@ impl MotionDetector {
                         let val_1 = val_01 * (1.0 - fx) + val_11 * fx;
                         let interpolated_val = val_0 * (1.0 - fy) + val_1 * fy;
 
-                        moved_persistence_buffer[target_index] = interpolated_val;
+                        self.temp_buffer[target_index] = interpolated_val;
                     }
                 }
             }
         } else {
             // No movement, copy the original buffer
-            moved_persistence_buffer.copy_from_slice(&self.persistence_buffer);
+            self.temp_buffer.copy_from_slice(&self.persistence_buffer);
         }
 
-        // Parallel processing using chunks for better cache performance
-        for y in 0..height {
-            let dy = y as f32 - self.center_y;
-            let dy_squared = dy * dy;
+        // Processing loop with optimized cache locality (Optimization #4)
+        for pixel_index in 0..width * height {
+            let rgba_index = pixel_index * 4;
 
-            for x in 0..width {
-                let pixel_index = y * width + x;
-                let rgba_index = pixel_index * 4;
+            // Use pre-computed values from lookup tables (Optimization #1)
+            let normalized_distance = self.distance_lut[pixel_index];
+            let radial_sensitivity = self.radial_sensitivity_lut[pixel_index];
 
-                // Optimized distance calculation
-                let dx = x as f32 - self.center_x;
-                let dx_squared = dx * dx;
-                let distance_squared = dx_squared + dy_squared;
-                let normalized_distance = distance_squared.sqrt() * self.inv_max_radius;
+            // Vectorized RGB difference calculation for better performance
+            let current_rgb = [
+                current_data[rgba_index] as f32,
+                current_data[rgba_index + 1] as f32,
+                current_data[rgba_index + 2] as f32,
+            ];
 
-                // Create radial sensitivity mask - high sensitivity in center, low at edges
-                let radial_sensitivity = (1.0 - normalized_distance * 0.9).max(0.1);
+            let compare_rgb = [
+                compare_data[rgba_index] as f32,
+                compare_data[rgba_index + 1] as f32,
+                compare_data[rgba_index + 2] as f32,
+            ];
 
-                // Calculate RGB differences using unsafe for maximum performance
-                let current_r = current_data[rgba_index] as f32;
-                let current_g = current_data[rgba_index + 1] as f32;
-                let current_b = current_data[rgba_index + 2] as f32;
+            // Calculate average difference more efficiently
+            let avg_diff = current_rgb
+                .iter()
+                .zip(compare_rgb.iter())
+                .map(|(c, p)| (c - p).abs())
+                .sum::<f32>()
+                * 0.33333;
 
-                let compare_r = compare_data[rgba_index] as f32;
-                let compare_g = compare_data[rgba_index + 1] as f32;
-                let compare_b = compare_data[rgba_index + 2] as f32;
+            // Apply radial weighting to the difference
+            let radial_weighted_diff = avg_diff * radial_sensitivity;
 
-                let r_diff = (current_r - compare_r).abs();
-                let g_diff = (current_g - compare_g).abs();
-                let b_diff = (current_b - compare_b).abs();
+            // Apply adaptive threshold based on distance from center
+            let adaptive_threshold = threshold + normalized_distance * 40.0;
+            let filtered_diff = if radial_weighted_diff > adaptive_threshold {
+                radial_weighted_diff
+            } else {
+                0.0
+            };
 
-                // Average difference with optimized multiplication
-                let avg_diff = (r_diff + g_diff + b_diff) * 0.33333;
+            // Enhanced motion detection with radial focus
+            let enhanced_diff =
+                (filtered_diff * (sensitivity + radial_sensitivity * 0.5)).min(255.0);
 
-                // Apply radial weighting to the difference
-                let radial_weighted_diff = avg_diff * radial_sensitivity;
+            // Apply persistence: combine current motion with decaying previous motion
+            let previous_persistence = self.temp_buffer[pixel_index];
+            let persisted_motion = enhanced_diff.max(previous_persistence * decay_rate);
 
-                // Apply adaptive threshold based on distance from center
-                let adaptive_threshold = threshold + normalized_distance * 40.0;
-                let filtered_diff = if radial_weighted_diff > adaptive_threshold {
-                    radial_weighted_diff
-                } else {
-                    0.0
-                };
+            // Update persistence buffer
+            self.persistence_buffer[pixel_index] = persisted_motion;
 
-                // Enhanced motion detection with radial focus
-                let enhanced_diff =
-                    (filtered_diff * (sensitivty + radial_sensitivity * 0.5)).min(255.0);
+            // Apply temporal smoothing and convert to u8
+            let smoothed_motion = persisted_motion.min(255.0) as u8;
 
-                // Apply persistence: combine current motion with decaying previous motion
-                let previous_persistence = moved_persistence_buffer[pixel_index];
-                let persisted_motion = enhanced_diff.max(previous_persistence * decay_rate);
-
-                // Update persistence buffer
-                self.persistence_buffer[pixel_index] = persisted_motion;
-
-                // Apply temporal smoothing and convert to u8
-                let smoothed_motion = persisted_motion.min(255.0) as u8;
-
-                // Set the output as grayscale RGBA
-                output_data[rgba_index] = smoothed_motion;
-                output_data[rgba_index + 1] = smoothed_motion;
-                output_data[rgba_index + 2] = smoothed_motion;
-                output_data[rgba_index + 3] = 255;
-            }
+            // Set the output as grayscale RGBA
+            output_data[rgba_index] = smoothed_motion;
+            output_data[rgba_index + 1] = smoothed_motion;
+            output_data[rgba_index + 2] = smoothed_motion;
+            output_data[rgba_index + 3] = 255;
         }
     }
 

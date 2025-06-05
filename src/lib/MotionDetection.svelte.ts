@@ -19,9 +19,11 @@ export class MotionDetection {
 	private videoElement: HTMLVideoElement | null = null;
 	private canvasElement: HTMLCanvasElement | null = null;
 	private animationFrameId: number = 0;
+	private timeoutId: number = 0;
 	private previousImageData: ImageData | null = null;
 	private framesInCurrentSecond: number = 0;
 	private timeOfFrameSecond: number = 0;
+	private frameInterval: number = 1000 / 20; // 50ms for 20 FPS
 	
 	// WebAssembly
 	private MotionDetector: any = null;
@@ -160,6 +162,11 @@ export class MotionDetection {
 			this.animationFrameId = 0;
 		}
 
+		if (this.timeoutId) {
+			clearTimeout(this.timeoutId);
+			this.timeoutId = 0;
+		}
+
 		// Clean up WASM resources
 		if (this.motionDetector && this.motionDetector.free) {
 			this.motionDetector.free();
@@ -230,9 +237,10 @@ export class MotionDetection {
 			// Update compute time
 			this._state.computeTime = Date.now() - before;
 
-			// Schedule next frame
+			// Schedule next frame at fixed framerate
 			if (this._state.isActive) {
-				this.animationFrameId = requestAnimationFrame(() => this.processMotionDetection());
+				const timeTillNextFrame = Math.max(this.frameInterval - this._state.computeTime, 0);
+				this.timeoutId = setTimeout(() => this.processMotionDetection(), timeTillNextFrame);
 			}
 		} catch (error) {
 			console.error('Motion detection processing error:', error);
