@@ -98,6 +98,23 @@ export class MotionDetection {
 		}, 100);
 	}
 
+	async waitForWasm() {
+		if (this.MotionDetector) {
+			return true;
+		}
+		await new Promise<void>((resolve) => {
+			const checkWasm = () => {
+				if (this.MotionDetector) {
+					resolve();
+				} else {
+					setTimeout(checkWasm, 100); // Check every 100ms
+				}
+			};
+			checkWasm();
+		});
+		return true;
+	}
+
 	// Start motion detection
 	start(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasElement): boolean {
 		this.videoElement = videoElement;

@@ -22,16 +22,15 @@
 		};
 	});
 
-	setTimeout(() => {
-		motionDetection.start(videoElement, canvasElement);
-	}, 1000);
-
 	onMount(() => {
 		initializeCamera();
 	});
 
 	async function initializeCamera() {
 		await motionDetection.setupWasm();
+		await motionDetection.waitForWasm();
+		motionDetection.start(videoElement, canvasElement);
+
 		console.log('Starting camera initialization...');
 
 		try {
@@ -51,10 +50,8 @@
 			});
 
 			console.log('Camera access granted, setting up video element...');
-			isLoading = false;
 			if (videoElement) {
 				videoElement.srcObject = stream;
-				// Don't set isLoading = false here, wait for the video to actually load
 				await videoElement.play();
 			}
 		} catch (error) {
@@ -93,7 +90,7 @@
 		}
 	}
 
-	let filters = $state('sepia(1) saturate(6) hue-rotate(80deg)');
+	let filters = $state('sepia(1) saturate(3) hue-rotate(80deg) saturate(3)');
 	let intervalId: number;
 	let intervalDuration = 30000; // 30 seconds
 
@@ -102,9 +99,9 @@
 		intervalId = setInterval(() => {
 			const hueRotateValue = Math.floor(Math.random() * 360);
 			if (Math.random() < 0.15) {
-				filters = `sepia(0) saturate(0) hue-rotate(${hueRotateValue}deg)`;
+				filters = `sepia(0) saturate(0) hue-rotate(${hueRotateValue}deg) saturate(0)`;
 			} else {
-				filters = `sepia(1) saturate(6) hue-rotate(${hueRotateValue}deg)`;
+				filters = `sepia(1) saturate(3) hue-rotate(${hueRotateValue}deg) saturate(3)`;
 			}
 		}, intervalDuration);
 
@@ -133,7 +130,7 @@
 </script>
 
 <svelte:head>
-	<title>Camera Feed</title>
+	<title>Psychic Visualization</title>
 </svelte:head>
 
 {#if isLoading}
