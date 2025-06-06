@@ -3,12 +3,14 @@
 	import FilterControls from '$lib/FilterControls.svelte';
 	import MotionDetection from '$lib/MotionDetection.svelte';
 	import { AnimateAngleChange } from '$lib/AnimateAngleChange.svelte';
+	import { ColorFilters } from '$lib/ColorFilters.svelte';
 
 	let videoElement: HTMLVideoElement;
 	let canvasElement: HTMLCanvasElement;
 	let errorMessage: string | null = $state(null);
 	let isLoading = $state(true);
 	const motionDetection = new MotionDetection();
+	const colorFilters = new ColorFilters();
 
 	const angleAnimation = new AnimateAngleChange((angle) => {
 		motionDetection.options.movementAngle = angle;
@@ -17,8 +19,10 @@
 	// Start the angle animation loop on mount
 	onMount(() => {
 		angleAnimation.start(motionDetection.options.movementAngle);
+		colorFilters.start();
 		return () => {
 			angleAnimation.destroy();
+			colorFilters.destroy();
 		};
 	});
 
@@ -90,28 +94,6 @@
 		}
 	}
 
-	let filters = $state('sepia(1) saturate(3) hue-rotate(80deg) saturate(3)');
-	let intervalId: number;
-	let intervalDuration = 30000; // 30 seconds
-
-	onMount(() => {
-		// Start the interval to update filters every 100ms
-		intervalId = setInterval(() => {
-			const hueRotateValue = Math.floor(Math.random() * 360);
-			if (Math.random() < 0.15) {
-				filters = `sepia(0) saturate(0) hue-rotate(${hueRotateValue}deg) saturate(0)`;
-			} else {
-				filters = `sepia(1) saturate(3) hue-rotate(${hueRotateValue}deg) saturate(3)`;
-			}
-		}, intervalDuration);
-
-		return () => {
-			if (intervalId) {
-				clearInterval(intervalId);
-			}
-		};
-	});
-
 	$effect(() => {
 		return () => {
 			if (motionDetection.state.isActive) {
@@ -158,7 +140,7 @@
 <canvas
 	bind:this={canvasElement}
 	class="camera-feed"
-	style="filter: {filters}; transition-duration: {intervalDuration}ms; display: {motionDetection
+	style="filter: {colorFilters.filters}; transition-duration: {colorFilters.transitionDuration}ms; display: {motionDetection
 		.state.isActive
 		? 'block'
 		: 'none'};"
