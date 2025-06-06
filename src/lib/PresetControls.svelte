@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { PresetManager } from './presets/PresetManager.svelte';
 	import type { MotionDetectionOptions } from './MotionDetection.svelte';
+	import { PresetManager } from './presets/PresetManager.svelte';
 
 	interface Props {
 		presetManager: PresetManager;
-		onCreatePreset: () => void;
+		onCreatePreset: (name: string) => void;
 		currentMotionOptions: MotionDetectionOptions;
 	}
 
@@ -13,11 +13,28 @@
 	let newPresetName = $state('');
 	let newPresetDescription = $state('');
 	let showCreateDialog = $state(false);
+	let showSettingsDialog = $state(false);
 
+	// Local state for settings
+	let transitionDuration = $state(3000); // 3 seconds default
+	let cycleDuration = $state(30000); // 30 seconds default
+
+	// Initialize from preset manager
+	$effect(() => {
+		transitionDuration = presetManager.transitions?.duration || 3000;
+		cycleDuration = presetManager.state.cycleInterval;
+	});
+
+	// Check for unsaved changes when options change
+	$effect(() => {
+		if (presetManager.state.currentPresetId) {
+			presetManager.checkForUnsavedChanges?.(currentMotionOptions);
+		}
+	});
 	function handleCreatePreset() {
 		if (!newPresetName.trim()) return;
 
-		onCreatePreset();
+		onCreatePreset(newPresetName.trim());
 		newPresetName = '';
 		newPresetDescription = '';
 		showCreateDialog = false;
@@ -29,6 +46,32 @@
 		} else {
 			presetManager.startCycling();
 		}
+	}
+	function applySettings() {
+		// Update transition duration
+		presetManager.transitions.setDuration(transitionDuration);
+
+		// Update cycle interval
+		presetManager.setCycleInterval(cycleDuration);
+
+		showSettingsDialog = false;
+	}
+
+	function handleSaveAsExisting() {
+		presetManager.updateCurrentPreset?.(currentMotionOptions);
+	}
+
+	function handleSaveAsNew() {
+		// Generate a name based on current preset + timestamp
+		const baseName = presetManager.currentPreset?.name || 'Preset';
+		const timestamp = new Date().toLocaleString();
+		const newName = `${baseName} - ${timestamp}`;
+
+		presetManager.createPresetFromCurrent?.(newName, currentMotionOptions);
+	}
+
+	function handleDiscardChanges() {
+		presetManager.discardChanges?.();
 	}
 
 	function formatTimeRemaining(ms: number): string {
@@ -63,6 +106,14 @@
 			</button>
 
 			<button
+				class="settings-btn"
+				onclick={() => (showSettingsDialog = true)}
+				disabled={presetManager.state.isEditingPreset}
+			>
+				⚙️ Settings
+			</button>
+
+			<button
 				class="cycle-btn"
 				class:active={presetManager.state.isPlaying}
 				onclick={toggleCycling}
@@ -79,6 +130,19 @@
 		</div>
 	{/if}
 
+	{#if presetManager.state.hasUnsavedChanges && presetManager.currentPreset}
+		<div class="unsaved-changes-banner">
+			<div class="unsaved-info">
+				<strong>Unsaved Changes</strong>
+			</div>
+			<div class="save-actions">
+				<button class="reset-btn" onclick={handleDiscardChanges}> Reset </button>
+				<button class="save-new-btn" onclick={handleSaveAsNew}> Save New </button>
+				<button class="save-btn" onclick={handleSaveAsExisting}> Save </button>
+			</div>
+		</div>
+	{/if}
+
 	<div class="preset-list">
 		{#each presetManager.presets as preset (preset.id)}
 			<div
@@ -86,36 +150,18 @@
 				class:active={presetManager.state.currentPresetId === preset.id}
 				class:editing={presetManager.state.isEditingPreset &&
 					presetManager.state.currentPresetId === preset.id}
+				onclick={() => presetManager.applyPreset(preset.id)}
 			>
 				<div class="preset-info">
 					<h4>{preset.name}</h4>
-					{#if preset.description}
-						<p class="description">{preset.description}</p>
-					{/if}
 					<span class="move-type">Type: {preset.options.moveType}</span>
 				</div>
 
-				<div class="preset-actions">
-					<button
-						class="edit-btn"
-						onclick={() => presetManager.startEditingPreset(preset.id)}
-						disabled={presetManager.state.isPlaying}
-					>
-						Edit
-					</button>
-
-					<button
-						class="apply-btn"
-						onclick={() => presetManager.applyPreset(preset.id)}
-						disabled={presetManager.state.isEditingPreset}
-					>
-						Apply
-					</button>
-
+				<div class="preset-actions" onclick={(e) => e.stopPropagation()}>
 					<button
 						class="delete-btn"
 						onclick={() => presetManager.deletePreset(preset.id)}
-						disabled={presetManager.state.isEditingPreset || presetManager.state.isPlaying}
+						disabled={presetManager.state.isPlaying}
 					>
 						×
 					</button>
@@ -184,6 +230,48 @@
 	</div>
 {/if}
 
+{#if showSettingsDialog}
+	<div class="dialog-overlay" onclick={() => (showSettingsDialog = false)}>
+		<div class="dialog" onclick={(e) => e.stopPropagation()}>
+			<h3>Preset Settings</h3>
+			<div class="form-group">
+				<label for="transition-duration">Transition Duration:</label>
+				<div class="slider-group">
+					<input
+						id="transition-duration"
+						type="range"
+						min="500"
+						max="10000"
+						step="100"
+						bind:value={transitionDuration}
+					/>
+					<span class="slider-value">{(transitionDuration / 1000).toFixed(1)}s</span>
+				</div>
+				<small>How long it takes to smoothly change between presets</small>
+			</div>
+			<div class="form-group">
+				<label for="cycle-duration">Cycle Duration:</label>
+				<div class="slider-group">
+					<input
+						id="cycle-duration"
+						type="range"
+						min="3000"
+						max="120000"
+						step="1000"
+						bind:value={cycleDuration}
+					/>
+					<span class="slider-value">{(cycleDuration / 1000).toFixed(0)}s</span>
+				</div>
+				<small>How often to switch to a new preset during cycling</small>
+			</div>
+			<div class="dialog-actions">
+				<button onclick={() => (showSettingsDialog = false)}>Cancel</button>
+				<button class="primary" onclick={applySettings}>Apply Settings</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
 <style>
 	.preset-controls {
 		background: rgba(0, 0, 0, 0.8);
@@ -214,7 +302,8 @@
 	}
 
 	.create-btn,
-	.cycle-btn {
+	.cycle-btn,
+	.settings-btn {
 		padding: 6px 12px;
 		border: none;
 		border-radius: 4px;
@@ -225,6 +314,11 @@
 
 	.create-btn {
 		background: #10b981;
+		color: white;
+	}
+
+	.settings-btn {
+		background: #6b7280;
 		color: white;
 	}
 
@@ -246,6 +340,67 @@
 		margin-bottom: 16px;
 	}
 
+	.unsaved-changes-banner {
+		background: rgba(245, 158, 11, 0.2);
+		border: 1px solid rgba(245, 158, 11, 0.4);
+		border-radius: 4px;
+		padding: 12px;
+		margin-bottom: 16px;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+
+	.unsaved-info {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.unsaved-info strong {
+		color: #f59e0b;
+		font-size: 12px;
+	}
+
+	.unsaved-info span {
+		font-size: 11px;
+		opacity: 0.8;
+	}
+
+	.save-actions {
+		display: flex;
+		gap: 6px;
+	}
+
+	.save-actions button {
+		border: none;
+		border-radius: 4px;
+		padding: 6px 10px;
+		font-size: 11px;
+		cursor: pointer;
+		font-weight: 500;
+		transition: opacity 0.2s;
+	}
+
+	.save-actions button:hover {
+		opacity: 0.8;
+	}
+
+	.reset-btn {
+		background: #6b7280;
+		color: white;
+	}
+
+	.save-new-btn {
+		background: #10b981;
+		color: white;
+	}
+
+	.save-btn {
+		background: #f59e0b;
+		color: white;
+	}
+
 	.preset-list {
 		max-height: 300px;
 		overflow-y: auto;
@@ -259,6 +414,13 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: flex-start;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.preset-item:hover {
+		border-color: rgba(255, 255, 255, 0.4);
+		background: rgba(255, 255, 255, 0.05);
 	}
 
 	.preset-item.active {
@@ -300,16 +462,6 @@
 		border-radius: 3px;
 		cursor: pointer;
 		font-size: 11px;
-	}
-
-	.edit-btn {
-		background: #f59e0b;
-		color: white;
-	}
-
-	.apply-btn {
-		background: #10b981;
-		color: white;
 	}
 
 	.delete-btn {
@@ -451,5 +603,54 @@
 	button:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+
+	.slider-group {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		margin-bottom: 4px;
+	}
+
+	.slider-group input[type='range'] {
+		flex: 1;
+		height: 4px;
+		background: #374151;
+		border-radius: 2px;
+		outline: none;
+		cursor: pointer;
+	}
+
+	.slider-group input[type='range']::-webkit-slider-thumb {
+		appearance: none;
+		width: 16px;
+		height: 16px;
+		background: #3b82f6;
+		border-radius: 50%;
+		cursor: pointer;
+	}
+
+	.slider-group input[type='range']::-moz-range-thumb {
+		width: 16px;
+		height: 16px;
+		background: #3b82f6;
+		border-radius: 50%;
+		border: none;
+		cursor: pointer;
+	}
+
+	.slider-value {
+		min-width: 40px;
+		text-align: right;
+		font-size: 12px;
+		font-weight: 500;
+		color: #3b82f6;
+	}
+
+	.form-group small {
+		display: block;
+		font-size: 11px;
+		opacity: 0.7;
+		margin-top: 4px;
 	}
 </style>

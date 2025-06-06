@@ -15,4 +15,6 @@ export interface PresetManagerState {
 	isEditingPreset: boolean;
 	lastCycleTime: number;
 	cycleInterval: number; // milliseconds
+	hasUnsavedChanges: boolean;
+	lastAppliedOptions: MotionDetectionOptions | null;
 }

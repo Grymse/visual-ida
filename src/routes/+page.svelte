@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import FilterControls from '$lib/FilterControls.svelte';
+	import MotionDetectionControls from '$lib/MotionDetectionControls.svelte';
 	import FpsCounter from '$lib/FpsCounter.svelte';
 	import PresetControls from '$lib/PresetControls.svelte';
 	import MotionDetection from '$lib/MotionDetection.svelte';
@@ -17,9 +17,29 @@
 	const colorFilters = new ColorFilters();
 
 	// Create preset manager with callback to update motion detection options
-	const presetManager = new PresetManager((options: MotionDetectionOptions) => {
-		// Update motion detection options when a preset is applied
-		Object.assign(motionDetection.options, options);
+	const presetManager = new PresetManager(
+		(options: MotionDetectionOptions) => {
+			// Update motion detection options when a preset is applied
+			Object.assign(motionDetection.options, options);
+		},
+		() => {
+			// Return current motion detection options for smooth transitions
+			return motionDetection.options;
+		}
+	);
+
+	// Watch for changes in motion options to detect unsaved changes
+	$effect(() => {
+		if (presetManager.state.currentPresetId) {
+			// Create a simplified check - we'll implement the full checkForUnsavedChanges method
+			const currentPreset = presetManager.currentPreset;
+			if (currentPreset && presetManager.state.lastAppliedOptions) {
+				const hasChanges =
+					JSON.stringify(motionDetection.options) !==
+					JSON.stringify(presetManager.state.lastAppliedOptions);
+				presetManager.state.hasUnsavedChanges = hasChanges;
+			}
+		}
 	});
 
 	let maxComputeTime = $state(0);
@@ -32,6 +52,14 @@
 	onMount(() => {
 		angleAnimation.start(motionDetection.options.movementAngle);
 		colorFilters.start();
+
+		// Auto-start cycling if presets are available
+		setTimeout(() => {
+			if (presetManager.presets.length > 0) {
+				presetManager.startCycling();
+			}
+		}, 1000); // Wait 1 second for everything to initialize
+
 		return () => {
 			angleAnimation.destroy();
 			colorFilters.destroy();
@@ -108,12 +136,8 @@
 	}
 
 	// Function to create a new preset from current settings
-	function createPresetFromCurrentSettings() {
-		const timestamp = new Date().toLocaleString();
-		const moveType = motionDetection.options.moveType;
-		const defaultName = `${moveType} - ${timestamp}`;
-
-		presetManager.createPreset(defaultName, motionDetection.options);
+	function createPresetFromCurrentSettings(name: string) {
+		presetManager.createPreset(name, motionDetection.options);
 	}
 
 	// Track max compute time
@@ -175,7 +199,7 @@
 	currentMotionOptions={motionDetection.options}
 />
 
-<FilterControls
+<MotionDetectionControls
 	isMotionDetectionActive={motionDetection.state.isActive}
 	{toggleMotionDetection}
 	motionDetectionOptions={motionDetection.options}

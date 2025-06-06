@@ -74,7 +74,7 @@
 
 <!-- Filter Controls -->
 <div class="filter-controls">
-	<button class="filter-toggle" onclick={toggleFiltersPanel}> 🎨 Filters </button>
+	<button class="filter-toggle" onclick={toggleFiltersPanel}> 🎨 Options </button>
 
 	{#if showFilters}
 		<div class="filters-panel">
