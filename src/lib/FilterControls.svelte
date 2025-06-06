@@ -8,11 +8,6 @@
 		activeFilters: string[];
 		motionDetectionActive: boolean;
 		radialFocusActive: boolean;
-		movementAngle: number;
-		movementSpeed: number;
-		motionDecayRate: number;
-		motionThreshold: number;
-		motionSensitivity: number;
 		onToggleFilter: (filterId: string) => void;
 		motionDetectionOptions: MotionDetectionOptions;
 	}
@@ -21,11 +16,6 @@
 		activeFilters = $bindable(),
 		motionDetectionActive = $bindable(),
 		radialFocusActive = $bindable(),
-		movementAngle,
-		movementSpeed,
-		motionDecayRate,
-		motionThreshold,
-		motionSensitivity,
 		onToggleFilter,
 		motionDetectionOptions = $bindable<MotionDetectionOptions>()
 	}: Props = $props();
@@ -62,11 +52,6 @@
 	function handleMotionThresholdChange(event: Event) {
 		const target = event.target as HTMLInputElement;
 		motionDetectionOptions.motionThreshold = parseFloat(target.value);
-	}
-
-	function handleMotionSensitivityChange(event: Event) {
-		const target = event.target as HTMLInputElement;
-		motionDetectionOptions.motionSensitivity = parseFloat(target.value);
 	}
 
 	function handleMoveTypeChange(event: Event) {
@@ -268,44 +253,35 @@
 
 					<h4>Motion Detection</h4>
 					<div class="control-group">
-						<label for="motion-decay">Decay Rate: {motionDecayRate.toFixed(2)}</label>
+						<label for="motion-decay"
+							>Decay Rate: {motionDetectionOptions.motionDecayRate.toFixed(2)}</label
+						>
 						<input
 							id="motion-decay"
 							type="range"
 							min="0.1"
 							max="0.99"
 							step="0.01"
-							value={motionDecayRate}
+							value={motionDetectionOptions.motionDecayRate}
 							oninput={handleMotionDecayRateChange}
 							class="slider"
 						/>
 					</div>
 					<div class="control-group">
-						<label for="motion-threshold">Threshold: {motionThreshold.toFixed(0)}</label>
+						<label for="motion-threshold"
+							>Threshold: {motionDetectionOptions.motionThreshold.toFixed(0)}</label
+						>
 						<input
 							id="motion-threshold"
 							type="range"
 							min="1"
 							max="100"
 							step="1"
-							value={motionThreshold}
+							value={motionDetectionOptions.motionThreshold}
 							oninput={handleMotionThresholdChange}
 							class="slider"
 						/>
 					</div>
-					<!-- <div class="control-group">
-						<label for="motion-sensitivity">Sensitivity: {motionSensitivity.toFixed(1)}</label>
-						<input
-							id="motion-sensitivity"
-							type="range"
-							min="0.5"
-							max="5.0"
-							step="0.1"
-							value={motionSensitivity}
-							oninput={handleMotionSensitivityChange}
-							class="slider"
-						/>
-					</div> -->
 				</div>
 			{/if}
 

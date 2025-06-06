@@ -10,7 +10,6 @@
 	let isLoading = $state(true);
 	let activeFilters: string[] = $state(['blue-tone', 'neon']);
 	let radialFocusActive = $state(false);
-	let fps = 20; // Nice framerate for motion detection
 	const motionDetection = new MotionDetection();
 
 	// let motionDetectionError: string | null = $derived(motionDetection.state.errorMessage);
@@ -182,7 +181,7 @@
 		<p>{errorMessage}</p>
 	</div>
 {/if}
-<!-- svelte-ignore a11y-media-has-caption -->
+
 <video
 	bind:this={videoElement}
 	autoplay
@@ -213,11 +212,6 @@
 	bind:activeFilters
 	motionDetectionActive={motionDetection.state.isActive}
 	bind:radialFocusActive
-	movementAngle={motionDetection.options.movementAngle}
-	movementSpeed={motionDetection.options.movementSpeed}
-	motionDecayRate={motionDetection.options.motionDecayRate}
-	motionThreshold={motionDetection.options.motionThreshold}
-	motionSensitivity={motionDetection.options.motionSensitivity}
 	onToggleFilter={toggleFilter}
 	motionDetectionOptions={motionDetection.options}
 />
