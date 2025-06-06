@@ -1,62 +1,24 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import FilterControls from '$lib/FilterControls.svelte';
-	import { filters } from '$lib/filters';
 	import MotionDetection from '$lib/MotionDetection.svelte';
+	import { AnimateAngleChange } from '$lib/AnimateAngleChange.svelte';
 
 	let videoElement: HTMLVideoElement;
 	let canvasElement: HTMLCanvasElement;
 	let errorMessage: string | null = $state(null);
 	let isLoading = $state(true);
-	let activeFilters: string[] = $state(['blue-tone', 'neon']);
-	let radialFocusActive = $state(false);
 	const motionDetection = new MotionDetection();
 
-	// let motionDetectionError: string | null = $derived(motionDetection.state.errorMessage);
-
-	let angleAnimationTimeout: ReturnType<typeof setTimeout> | null = null;
-	let angleAnimationFrame: number | null = null;
-	let angleAnimationStart = 0;
-	let angleAnimationDuration = 0;
-	let angleAnimationFrom = motionDetection.options.movementAngle;
-	let angleAnimationTo = motionDetection.options.movementAngle;
-
-	function animateAngleChange() {
-		// Animate movementAngle from angleAnimationFrom to angleAnimationTo over angleAnimationDuration ms
-		const now = performance.now();
-		const elapsed = now - angleAnimationStart;
-		const t = Math.min(elapsed / angleAnimationDuration, 1);
-		const currentAngle = angleAnimationFrom + (angleAnimationTo - angleAnimationFrom) * t;
-		// Update the motion detection angle
-		motionDetection.options.movementAngle = currentAngle;
-
-		if (t < 1) {
-			angleAnimationFrame = requestAnimationFrame(animateAngleChange);
-		} else {
-			motionDetection.options.movementAngle = angleAnimationTo;
-			angleAnimationFrame = null;
-			scheduleNextAngleChange();
-		}
-	}
-
-	function scheduleNextAngleChange() {
-		const delay = 5000 + Math.random() * 15000; // 5-20 seconds
-		angleAnimationTimeout = setTimeout(() => {
-			angleAnimationFrom = motionDetection.options.movementAngle;
-			angleAnimationTo = Math.floor(Math.random() * 361);
-			angleAnimationStart = performance.now();
-			angleAnimationDuration = 1500 + Math.random() * 1500; // 1.5-3s transition
-			if (angleAnimationFrame) cancelAnimationFrame(angleAnimationFrame);
-			angleAnimationFrame = requestAnimationFrame(animateAngleChange);
-		}, delay);
-	}
+	const angleAnimation = new AnimateAngleChange((angle) => {
+		motionDetection.options.movementAngle = angle;
+	});
 
 	// Start the angle animation loop on mount
 	onMount(() => {
-		scheduleNextAngleChange();
+		angleAnimation.start(motionDetection.options.movementAngle);
 		return () => {
-			if (angleAnimationTimeout) clearTimeout(angleAnimationTimeout);
-			if (angleAnimationFrame) cancelAnimationFrame(angleAnimationFrame);
+			angleAnimation.destroy();
 		};
 	});
 
@@ -108,8 +70,6 @@
 
 		// Cleanup function
 		return () => {
-			if (angleAnimationTimeout) clearTimeout(angleAnimationTimeout);
-			if (angleAnimationFrame) cancelAnimationFrame(angleAnimationFrame);
 			motionDetection.destroy();
 		};
 	}
@@ -125,31 +85,35 @@
 	}
 
 	// Filter control functions
-	function toggleFilter(filterId: string) {
-		if (filterId === 'motion-detection') {
-			if (motionDetection.state.isActive) {
-				motionDetection.stop();
-			} else {
-				motionDetection.start(videoElement, canvasElement);
-			}
-			return;
-		}
-
-		if (filterId === 'radial-focus') {
-			radialFocusActive = !radialFocusActive;
-			return;
-		}
-
-		if (activeFilters.includes(filterId)) {
-			activeFilters = activeFilters.filter((f) => f !== filterId);
+	function toggleMotionDetection() {
+		if (motionDetection.state.isActive) {
+			motionDetection.stop();
 		} else {
-			activeFilters = [...activeFilters, filterId];
+			motionDetection.start(videoElement, canvasElement);
 		}
 	}
 
-	function filtersToCSS(fi: string[]) {
-		return fi.length > 0 ? fi.map((id) => filters.find((f) => f.id === id)?.css).join(' ') : 'none';
-	}
+	let filters = $state('sepia(1) saturate(6) hue-rotate(80deg)');
+	let intervalId: number;
+	let intervalDuration = 30000; // 30 seconds
+
+	onMount(() => {
+		// Start the interval to update filters every 100ms
+		intervalId = setInterval(() => {
+			const hueRotateValue = Math.floor(Math.random() * 360);
+			if (Math.random() < 0.15) {
+				filters = `sepia(0) saturate(0) hue-rotate(${hueRotateValue}deg)`;
+			} else {
+				filters = `sepia(1) saturate(6) hue-rotate(${hueRotateValue}deg)`;
+			}
+		}, intervalDuration);
+
+		return () => {
+			if (intervalId) {
+				clearInterval(intervalId);
+			}
+		};
+	});
 
 	$effect(() => {
 		return () => {
@@ -197,7 +161,8 @@
 <canvas
 	bind:this={canvasElement}
 	class="camera-feed"
-	style="filter: {filtersToCSS(activeFilters)}; display: {motionDetection.state.isActive
+	style="filter: {filters}; transition-duration: {intervalDuration}ms; display: {motionDetection
+		.state.isActive
 		? 'block'
 		: 'none'};"
 ></canvas>
@@ -209,10 +174,8 @@
 </p>
 
 <FilterControls
-	bind:activeFilters
-	motionDetectionActive={motionDetection.state.isActive}
-	bind:radialFocusActive
-	onToggleFilter={toggleFilter}
+	isMotionDetectionActive={motionDetection.state.isActive}
+	{toggleMotionDetection}
 	motionDetectionOptions={motionDetection.options}
 />
 

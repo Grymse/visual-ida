@@ -1,22 +1,17 @@
 <script lang="ts">
-	import { filters } from './filters';
 	import type { MotionDetectionOptions } from './MotionDetection.svelte';
 
 	// Filter definitions
 
 	interface Props {
-		activeFilters: string[];
-		motionDetectionActive: boolean;
-		radialFocusActive: boolean;
-		onToggleFilter: (filterId: string) => void;
+		isMotionDetectionActive?: boolean;
+		toggleMotionDetection?: () => void;
 		motionDetectionOptions: MotionDetectionOptions;
 	}
 
 	let {
-		activeFilters = $bindable(),
-		motionDetectionActive = $bindable(),
-		radialFocusActive = $bindable(),
-		onToggleFilter,
+		isMotionDetectionActive = false,
+		toggleMotionDetection = () => {},
 		motionDetectionOptions = $bindable<MotionDetectionOptions>()
 	}: Props = $props();
 
@@ -24,14 +19,6 @@
 
 	function toggleFiltersPanel() {
 		showFilters = !showFilters;
-	}
-
-	function handleToggleFilter(filterId: string) {
-		onToggleFilter(filterId);
-	}
-
-	function handleClearAll() {
-		activeFilters = [];
 	}
 
 	function handleMovementAngleChange(event: Event) {
@@ -91,34 +78,14 @@
 
 	{#if showFilters}
 		<div class="filters-panel">
-			<div class="filters-header">
-				<h3>Camera Filters</h3>
-				<button class="clear-all" onclick={handleClearAll}>Clear All</button>
-			</div>
+			<button
+				class="filter-button {isMotionDetectionActive ? 'active' : ''}"
+				onclick={() => toggleMotionDetection()}
+			>
+				Motion Detection
+			</button>
 
-			<div class="filters-grid">
-				{#each filters as filter}
-					<button
-						class="filter-button {activeFilters.includes(filter.id) ? 'active' : ''} {filter.id ===
-							'motion-detection' && motionDetectionActive
-							? 'motion-active'
-							: ''} {filter.id === 'radial-focus' && radialFocusActive ? 'radial-active' : ''}"
-						onclick={() => handleToggleFilter(filter.id)}
-					>
-						{filter.name}
-					</button>
-				{/each}
-			</div>
-
-			{#if activeFilters.length > 0}
-				<div class="active-filters">
-					<p>
-						Active: {activeFilters.map((id) => filters.find((f) => f.id === id)?.name).join(', ')}
-					</p>
-				</div>
-			{/if}
-
-			{#if motionDetectionActive}
+			{#if isMotionDetectionActive}
 				<div class="motion-controls">
 					<h4>Motion Movement</h4>
 
@@ -284,12 +251,6 @@
 					</div>
 				</div>
 			{/if}
-
-			{#if motionDetectionActive}
-				<div class="performance-status wasm-enabled">
-					<p>Motion Detection: 🚀 WebAssembly</p>
-				</div>
-			{/if}
 		</div>
 	{/if}
 </div>
@@ -377,66 +338,6 @@
 		}
 	}
 
-	.filters-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 15px;
-		color: white;
-	}
-
-	.filters-header h3 {
-		margin: 0;
-		font-size: 18px;
-	}
-
-	.clear-all {
-		background: rgba(220, 53, 69, 0.8);
-		color: white;
-		border: none;
-		padding: 6px 12px;
-		border-radius: 15px;
-		cursor: pointer;
-		font-size: 12px;
-		transition: background 0.3s ease;
-		min-height: 32px;
-		display: flex;
-		align-items: center;
-	}
-
-	.clear-all:hover {
-		background: rgba(220, 53, 69, 1);
-	}
-
-	/* Mobile header improvements */
-	@media (max-width: 480px) {
-		.filters-header {
-			flex-direction: column;
-			align-items: stretch;
-			gap: 10px;
-			margin-bottom: 20px;
-		}
-
-		.filters-header h3 {
-			font-size: 20px;
-			text-align: center;
-		}
-
-		.clear-all {
-			font-size: 14px;
-			padding: 10px 16px;
-			min-height: 44px;
-			justify-content: center;
-		}
-	}
-
-	.filters-grid {
-		display: grid;
-		grid-template-columns: repeat(2, 1fr);
-		gap: 8px;
-		margin-bottom: 15px;
-	}
-
 	.filter-button {
 		background: rgba(255, 255, 255, 0.1);
 		color: white;
@@ -455,11 +356,6 @@
 
 	/* Mobile responsive grid */
 	@media (max-width: 480px) {
-		.filters-grid {
-			grid-template-columns: 1fr;
-			gap: 6px;
-		}
-
 		.filter-button {
 			padding: 12px 16px;
 			font-size: 16px;
@@ -476,29 +372,6 @@
 		background: rgba(74, 144, 226, 0.8);
 		border-color: rgba(74, 144, 226, 1);
 		box-shadow: 0 0 10px rgba(74, 144, 226, 0.5);
-	}
-
-	.filter-button.motion-active {
-		background: rgba(255, 165, 0, 0.8);
-		border-color: rgba(255, 165, 0, 1);
-		box-shadow: 0 0 10px rgba(255, 165, 0, 0.5);
-	}
-
-	.filter-button.radial-active {
-		background: rgba(147, 112, 219, 0.8);
-		border-color: rgba(147, 112, 219, 1);
-		box-shadow: 0 0 10px rgba(147, 112, 219, 0.5);
-	}
-
-	.active-filters {
-		color: rgba(255, 255, 255, 0.8);
-		font-size: 12px;
-		padding-top: 10px;
-		border-top: 1px solid rgba(255, 255, 255, 0.1);
-	}
-
-	.active-filters p {
-		margin: 0;
 	}
 
 	.motion-controls {
@@ -623,40 +496,6 @@
 		}
 	}
 
-	.performance-status {
-		color: rgba(255, 255, 255, 0.9);
-		font-size: 12px;
-		padding-top: 10px;
-		border-top: 1px solid rgba(255, 255, 255, 0.1);
-		text-align: center;
-	}
-
-	.performance-status.wasm-enabled {
-		color: #4ade80; /* Green for WebAssembly */
-	}
-
-	.performance-status p {
-		margin: 0;
-		font-weight: 500;
-	}
-
-	/* Mobile improvements for status sections */
-	@media (max-width: 480px) {
-		.active-filters {
-			font-size: 14px;
-			padding-top: 15px;
-		}
-
-		.performance-status {
-			font-size: 14px;
-			padding-top: 15px;
-		}
-
-		.performance-status p {
-			font-size: 16px;
-		}
-	}
-
 	/* Touch improvements */
 	@media (hover: none) and (pointer: coarse) {
 		.filter-button:hover {
@@ -665,10 +504,6 @@
 
 		.filter-toggle:hover {
 			transform: none;
-		}
-
-		.clear-all:hover {
-			background: rgba(220, 53, 69, 0.8);
 		}
 	}
 </style>
