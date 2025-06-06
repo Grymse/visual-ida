@@ -2,9 +2,12 @@
 	import { onMount } from 'svelte';
 	import FilterControls from '$lib/FilterControls.svelte';
 	import FpsCounter from '$lib/FpsCounter.svelte';
+	import PresetControls from '$lib/PresetControls.svelte';
 	import MotionDetection from '$lib/MotionDetection.svelte';
 	import { AnimateAngleChange } from '$lib/AnimateAngleChange.svelte';
 	import { ColorFilters } from '$lib/ColorFilters.svelte';
+	import { PresetManager } from '$lib/presets/PresetManager.svelte';
+	import type { MotionDetectionOptions } from '$lib/MotionDetection.svelte';
 
 	let videoElement: HTMLVideoElement;
 	let canvasElement: HTMLCanvasElement;
@@ -12,6 +15,14 @@
 	let isLoading = $state(true);
 	const motionDetection = new MotionDetection();
 	const colorFilters = new ColorFilters();
+
+	// Create preset manager with callback to update motion detection options
+	const presetManager = new PresetManager((options: MotionDetectionOptions) => {
+		// Update motion detection options when a preset is applied
+		Object.assign(motionDetection.options, options);
+	});
+
+	let maxComputeTime = $state(0);
 
 	const angleAnimation = new AnimateAngleChange((angle) => {
 		motionDetection.options.movementAngle = angle;
@@ -24,6 +35,7 @@
 		return () => {
 			angleAnimation.destroy();
 			colorFilters.destroy();
+			presetManager.destroy();
 		};
 	});
 
@@ -95,6 +107,22 @@
 		}
 	}
 
+	// Function to create a new preset from current settings
+	function createPresetFromCurrentSettings() {
+		const timestamp = new Date().toLocaleString();
+		const moveType = motionDetection.options.moveType;
+		const defaultName = `${moveType} - ${timestamp}`;
+
+		presetManager.createPreset(defaultName, motionDetection.options);
+	}
+
+	// Track max compute time
+	$effect(() => {
+		if (motionDetection.state.computeTime) {
+			maxComputeTime = Math.max(maxComputeTime, motionDetection.state.computeTime);
+		}
+	});
+
 	$effect(() => {
 		return () => {
 			if (motionDetection.state.isActive) {
@@ -140,6 +168,12 @@
 ></canvas>
 
 <FpsCounter {motionDetection} />
+
+<PresetControls
+	{presetManager}
+	onCreatePreset={createPresetFromCurrentSettings}
+	currentMotionOptions={motionDetection.options}
+/>
 
 <FilterControls
 	isMotionDetectionActive={motionDetection.state.isActive}
