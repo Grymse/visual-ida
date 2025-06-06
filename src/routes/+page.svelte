@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import FilterControls from '$lib/FilterControls.svelte';
+	import FpsCounter from '$lib/FpsCounter.svelte';
 	import MotionDetection from '$lib/MotionDetection.svelte';
 	import { AnimateAngleChange } from '$lib/AnimateAngleChange.svelte';
 	import { ColorFilters } from '$lib/ColorFilters.svelte';
@@ -101,14 +102,6 @@
 			}
 		};
 	});
-
-	let maxComputeTime = $state(0);
-
-	$effect(() => {
-		if (motionDetection.state.computeTime) {
-			maxComputeTime = Math.max(maxComputeTime, motionDetection.state.computeTime);
-		}
-	});
 </script>
 
 <svelte:head>
@@ -146,11 +139,7 @@
 		: 'none'};"
 ></canvas>
 
-<p style="position: absolute; color: yellow; top: 20px; left: 20px; z-index: 100;">
-	{motionDetection.state.fps}
-	{motionDetection.state.computeTime}ms
-	<span style="color: red;">{maxComputeTime}</span>
-</p>
+<FpsCounter {motionDetection} />
 
 <FilterControls
 	isMotionDetectionActive={motionDetection.state.isActive}
