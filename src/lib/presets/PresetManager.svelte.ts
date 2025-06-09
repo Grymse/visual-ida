@@ -21,14 +21,18 @@ export class PresetManager {
 	private getCurrentOptionsCallback?: () => MotionDetectionOptions;
 	private onColorSpeedChangeCallback?: (speed: number) => void;
 	private colorTransitionSpeed = 2000; // Default 2 seconds
+	private onColorIntervalChangeCallback?: (interval: number) => void;
+	private colorIntervalDuration = 30000; // Default 30 seconds
 
 	constructor(
 		onPresetChange?: (options: MotionDetectionOptions) => void,
 		getCurrentOptions?: () => MotionDetectionOptions,
-		onColorSpeedChange?: (speed: number) => void
+		onColorSpeedChange?: (speed: number) => void,
+		onColorIntervalChange?: (interval: number) => void
 	) {
 		this.getCurrentOptionsCallback = getCurrentOptions;
 		this.onColorSpeedChangeCallback = onColorSpeedChange;
+		this.onColorIntervalChangeCallback = onColorIntervalChange;
 		this.transitionManager = new PresetTransitionManager(
 			onPresetChange,
 			() => this.saveSettings() // Save settings when transition duration changes
@@ -70,9 +74,9 @@ export class PresetManager {
 		const settings = SettingsStorage.load();
 		this._state.cycleInterval = settings.cycleDuration;
 		this.transitionManager.setDuration(settings.transitionDuration);
-		this.colorTransitionSpeed = settings.colorTransitionSpeed;
-		if (this.onColorSpeedChangeCallback) {
-			this.onColorSpeedChangeCallback(settings.colorTransitionSpeed);
+		this.colorIntervalDuration = settings.colorIntervalDuration;
+		if (this.onColorIntervalChangeCallback) {
+			this.onColorIntervalChangeCallback(settings.colorIntervalDuration);
 		}
 	}
 
@@ -81,7 +85,7 @@ export class PresetManager {
 		const settings: PresetSettings = {
 			transitionDuration: this.transitionManager.duration,
 			cycleDuration: this._state.cycleInterval,
-			colorTransitionSpeed: this.colorTransitionSpeed
+			colorIntervalDuration: this.colorIntervalDuration
 		};
 		SettingsStorage.save(settings);
 	}
@@ -92,18 +96,23 @@ export class PresetManager {
 		this.saveSettings();
 	}
 
-	// Set color transition speed and save to localStorage
-	setColorTransitionSpeed(speedMs: number): void {
-		this.colorTransitionSpeed = Math.max(100, speedMs); // Minimum 100ms
-		if (this.onColorSpeedChangeCallback) {
-			this.onColorSpeedChangeCallback(this.colorTransitionSpeed);
+	// Get current color transition speed
+	get colorSpeed(): number {
+		return this.colorTransitionSpeed;
+	}
+
+	// Set color interval duration and save to localStorage
+	setColorIntervalDuration(intervalMs: number): void {
+		this.colorIntervalDuration = Math.max(1000, intervalMs); // Minimum 1 second
+		if (this.onColorIntervalChangeCallback) {
+			this.onColorIntervalChangeCallback(this.colorIntervalDuration);
 		}
 		this.saveSettings();
 	}
 
-	// Get current color transition speed
-	get colorSpeed(): number {
-		return this.colorTransitionSpeed;
+	// Get current color interval duration
+	get colorInterval(): number {
+		return this.colorIntervalDuration;
 	}
 
 	// Create a new preset

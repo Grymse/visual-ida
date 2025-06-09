@@ -1,10 +1,12 @@
 
 export class ColorFilters {
 	private intervalId: number | null = null;
-	private intervalDuration = 30000; // 30 seconds
+	public intervalDuration = $state(30000); // 30 seconds
 	public filters = $state('sepia(1) saturate(3) hue-rotate(80deg) saturate(3)');
 
 	start() {
+        if (this.intervalId) this.destroy(); // Clear any existing interval
+
 		// Start the interval to update filters
 		this.intervalId = setInterval(() => {
 			const hueRotateValue = Math.floor(Math.random() * 360);
@@ -16,14 +18,14 @@ export class ColorFilters {
 		}, this.intervalDuration);
 	}
 
+    isActive() {
+        return this.intervalId !== null;
+    }
+
 	destroy() {
 		if (this.intervalId) {
 			clearInterval(this.intervalId);
 			this.intervalId = null;
 		}
-	}
-
-	get transitionDuration() {
-		return this.intervalDuration;
 	}
 }

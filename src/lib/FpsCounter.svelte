@@ -26,7 +26,7 @@
 	.fps-counter {
 		position: absolute;
 		color: yellow;
-		top: 20px;
+		bottom: 20px;
 		left: 20px;
 		z-index: 100;
 		margin: 0;

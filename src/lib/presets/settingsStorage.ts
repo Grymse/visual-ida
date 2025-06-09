@@ -1,7 +1,7 @@
 export interface PresetSettings {
 	transitionDuration: number;
 	cycleDuration: number;
-	colorTransitionSpeed: number;
+	colorIntervalDuration: number;
 }
 
 const SETTINGS_STORAGE_KEY = 'visual-ida-preset-settings';
@@ -10,7 +10,7 @@ export class SettingsStorage {
 	private static defaultSettings: PresetSettings = {
 		transitionDuration: 3000, // 3 seconds
 		cycleDuration: 30000, // 30 seconds
-		colorTransitionSpeed: 2000 // 2 seconds for color transitions
+		colorIntervalDuration: 30000 // 30 seconds for color interval changes
 	};
 
 	static save(settings: PresetSettings): void {
@@ -35,7 +35,7 @@ export class SettingsStorage {
 			return {
 				transitionDuration: typeof parsed.transitionDuration === 'number' ? parsed.transitionDuration : this.defaultSettings.transitionDuration,
 				cycleDuration: typeof parsed.cycleDuration === 'number' ? parsed.cycleDuration : this.defaultSettings.cycleDuration,
-				colorTransitionSpeed: typeof parsed.colorTransitionSpeed === 'number' ? parsed.colorTransitionSpeed : this.defaultSettings.colorTransitionSpeed
+				colorIntervalDuration: typeof parsed.colorIntervalDuration === 'number' ? parsed.colorIntervalDuration : this.defaultSettings.colorIntervalDuration
 			};
 		} catch (error) {
 			console.warn('Failed to load preset settings from localStorage:', error);

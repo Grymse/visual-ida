@@ -13,6 +13,7 @@
 	let canvasElement: HTMLCanvasElement;
 	let errorMessage: string | null = $state(null);
 	let isLoading = $state(true);
+	let startOn = true;
 	const motionDetection = new MotionDetection();
 	const colorFilters = new ColorFilters();
 
@@ -25,6 +26,18 @@
 		() => {
 			// Return current motion detection options for smooth transitions
 			return motionDetection.options;
+		},
+		(colorSpeed: number) => {
+			// Update color transition speed (placeholder for future use)
+			console.log('Color speed updated:', colorSpeed);
+		},
+		(colorInterval: number) => {
+			// Update color interval duration
+			colorFilters.intervalDuration = colorInterval;
+			// Restart the color filter with new interval if it's running
+			if (colorFilters.isActive()) {
+				colorFilters.start();
+			}
 		}
 	);
 
@@ -74,7 +87,7 @@
 	async function initializeCamera() {
 		await motionDetection.setupWasm();
 		await motionDetection.waitForWasm();
-		motionDetection.start(videoElement, canvasElement);
+		if (startOn) motionDetection.start(videoElement, canvasElement);
 
 		console.log('Starting camera initialization...');
 
@@ -87,8 +100,8 @@
 			console.log('Requesting camera access...');
 			const stream = await navigator.mediaDevices.getUserMedia({
 				video: {
-					width: { ideal: 1280 },
-					height: { ideal: 720 },
+					width: { ideal: 1920 },
+					height: { ideal: 1080 },
 					facingMode: 'user',
 					frameRate: 30
 				}
@@ -185,7 +198,7 @@
 <canvas
 	bind:this={canvasElement}
 	class="camera-feed"
-	style="filter: {colorFilters.filters}; transition-duration: {colorFilters.transitionDuration}ms; display: {motionDetection
+	style="filter: {colorFilters.filters}; transition-duration: {colorFilters.intervalDuration}ms; display: {motionDetection
 		.state.isActive
 		? 'block'
 		: 'none'};"

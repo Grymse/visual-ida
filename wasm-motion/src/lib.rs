@@ -298,44 +298,43 @@ impl MotionDetector {
         self.temp_buffer.resize(self.persistence_buffer.len(), 0.0);
 
         // Spiral movement processing
-        if speed.abs() > 0.1 || rotation_speed.abs() > 0.01 {
-            for pixel_index in 0..self.persistence_buffer.len() {
-                let x = (pixel_index % width) as f32;
-                let y = (pixel_index / width) as f32;
-
-                // Calculate polar coordinates relative to center
-                let dx = x - center_x;
-                let dy = y - center_y;
-                let distance = (dx * dx + dy * dy).sqrt();
-                let angle = dy.atan2(dx);
-
-                if (speed + 50.0) < distance {
-                    // Apply spiral transformation
-                    let new_distance = distance - speed;
-                    let new_angle = angle - rotation_speed;
-
-                    // Convert back to cartesian
-                    let source_x = center_x + new_distance * new_angle.cos();
-                    let source_y = center_y + new_distance * new_angle.sin();
-
-                    let source_x_int = source_x.round() as i32;
-                    let source_y_int = source_y.round() as i32;
-
-                    if source_x_int >= 0
-                        && source_x_int < width as i32
-                        && source_y_int >= 0
-                        && source_y_int < height as i32
-                    {
-                        let source_index = (source_y_int as usize * width) + source_x_int as usize;
-                        self.temp_buffer[pixel_index] = self.persistence_buffer[source_index];
-                    }
-                } else {
-                    // Center pixel stays the same
-                    self.temp_buffer[pixel_index] = self.persistence_buffer[pixel_index];
-                }
-            }
-        } else {
+        if !(speed.abs() > 0.1 || rotation_speed.abs() > 0.01) {
             self.temp_buffer.copy_from_slice(&self.persistence_buffer);
+        }
+        for pixel_index in 0..self.persistence_buffer.len() {
+            let x = (pixel_index % width) as f32;
+            let y = (pixel_index / width) as f32;
+
+            // Calculate polar coordinates relative to center
+            let dx = x - center_x;
+            let dy = y - center_y;
+            let distance = (dx * dx + dy * dy).sqrt();
+            let angle = dy.atan2(dx);
+
+            if (speed + 5.0) > distance {
+                self.temp_buffer[pixel_index] = self.persistence_buffer[pixel_index];
+                continue;
+            }
+
+            // Apply spiral transformation
+            let new_distance = distance - speed;
+            let new_angle = angle - rotation_speed;
+
+            // Convert back to cartesian
+            let source_x = center_x + new_distance * new_angle.cos();
+            let source_y = center_y + new_distance * new_angle.sin();
+
+            let source_x_int = source_x.round() as i32;
+            let source_y_int = source_y.round() as i32;
+
+            if source_x_int >= 0
+                && source_x_int < width as i32
+                && source_y_int >= 0
+                && source_y_int < height as i32
+            {
+                let source_index = (source_y_int as usize * width) + source_x_int as usize;
+                self.temp_buffer[pixel_index] = self.persistence_buffer[source_index];
+            }
         }
     }
 

@@ -18,11 +18,15 @@
 	// Local state for settings
 	let transitionDuration = $state(3000); // 3 seconds default
 	let cycleDuration = $state(30000); // 30 seconds default
+	let colorSpeed = $state(2000); // 2 seconds default
+	let colorInterval = $state(30000); // 30 seconds default
 
 	// Initialize from preset manager
 	$effect(() => {
 		transitionDuration = presetManager.transitions?.duration || 3000;
 		cycleDuration = presetManager.state.cycleInterval;
+		colorSpeed = presetManager.colorSpeed || 2000;
+		colorInterval = presetManager.colorInterval || 30000;
 	});
 
 	// Check for unsaved changes when options change
@@ -53,6 +57,9 @@
 
 		// Update cycle interval
 		presetManager.setCycleInterval(cycleDuration);
+
+		// Update color interval duration
+		presetManager.setColorIntervalDuration(colorInterval);
 
 		showSettingsDialog = false;
 	}
@@ -231,9 +238,15 @@
 {/if}
 
 {#if showSettingsDialog}
-	<div class="dialog-overlay" onclick={() => (showSettingsDialog = false)}>
-		<div class="dialog" onclick={(e) => e.stopPropagation()}>
-			<h3>Preset Settings</h3>
+	<div class="dialog-overlay" role="presentation" onclick={() => (showSettingsDialog = false)}>
+		<div
+			class="dialog"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="preset-settings-title"
+			onclick={(e) => e.stopPropagation()}
+		>
+			<h3 id="preset-settings-title">Preset Settings</h3>
 			<div class="form-group">
 				<label for="transition-duration">Transition Duration:</label>
 				<div class="slider-group">
@@ -250,19 +263,34 @@
 				<small>How long it takes to smoothly change between presets</small>
 			</div>
 			<div class="form-group">
-				<label for="cycle-duration">Cycle Duration:</label>
+				<label>Cycle Duration:</label>
 				<div class="slider-group">
 					<input
 						id="cycle-duration"
 						type="range"
 						min="3000"
-						max="120000"
+						max="300000"
 						step="1000"
 						bind:value={cycleDuration}
 					/>
 					<span class="slider-value">{(cycleDuration / 1000).toFixed(0)}s</span>
 				</div>
 				<small>How often to switch to a new preset during cycling</small>
+			</div>
+			<div class="form-group">
+				<label for="color-interval">Color Change Interval:</label>
+				<div class="slider-group">
+					<input
+						id="color-interval"
+						type="range"
+						min="1000"
+						max="120000"
+						step="1000"
+						bind:value={colorInterval}
+					/>
+					<span class="slider-value">{(colorInterval / 1000).toFixed(0)}s</span>
+				</div>
+				<small>How often colors change to new random values</small>
 			</div>
 			<div class="dialog-actions">
 				<button onclick={() => (showSettingsDialog = false)}>Cancel</button>
@@ -362,11 +390,6 @@
 		font-size: 12px;
 	}
 
-	.unsaved-info span {
-		font-size: 11px;
-		opacity: 0.8;
-	}
-
 	.save-actions {
 		display: flex;
 		gap: 6px;
@@ -436,18 +459,6 @@
 	.preset-info h4 {
 		margin: 0 0 4px 0;
 		font-size: 14px;
-	}
-
-	.preset-info .description {
-		margin: 0 0 4px 0;
-		font-size: 12px;
-		opacity: 0.8;
-	}
-
-	.preset-info .move-type {
-		font-size: 11px;
-		opacity: 0.7;
-		text-transform: capitalize;
 	}
 
 	.preset-actions {
