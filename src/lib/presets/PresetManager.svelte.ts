@@ -291,6 +291,9 @@ export class PresetManager {
 			clearTimeout(this.cycleTimeout);
 			this.cycleTimeout = null;
 		}
+		
+		// Cancel any ongoing transition when stopping cycle
+		this.transitionManager.cancelTransition();
 	}
 
 	// Schedule the next preset cycle
