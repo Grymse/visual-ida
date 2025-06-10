@@ -195,7 +195,7 @@
 	onloadeddata={handleVideoLoad}
 	onplaying={handleVideoPlay}
 	class="camera-feed"
-	style="display: {motionDetection.state.isActive ? 'none' : 'block'};"
+	style="display: {motionDetection.state.isActive ? 'none' : 'none'};"
 ></video>
 
 <!-- Canvas for motion detection -->

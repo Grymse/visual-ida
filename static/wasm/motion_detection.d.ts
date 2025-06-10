@@ -9,6 +9,7 @@ export class MotionDetector {
   move_spiral(options: any): void;
   move_wave(options: any): void;
   reset_persistence(): void;
+  reset_all_state(): void;
   get_buffer_size(): number;
 }
 
@@ -24,6 +25,7 @@ export interface InitOutput {
   readonly motiondetector_move_spiral: (a: number, b: any) => void;
   readonly motiondetector_move_wave: (a: number, b: any) => void;
   readonly motiondetector_reset_persistence: (a: number) => void;
+  readonly motiondetector_reset_all_state: (a: number) => void;
   readonly motiondetector_get_buffer_size: (a: number) => number;
   readonly __wbindgen_exn_store: (a: number) => void;
   readonly __externref_table_alloc: () => number;

@@ -180,6 +180,9 @@ export class MotionDetector {
     reset_persistence() {
         wasm.motiondetector_reset_persistence(this.__wbg_ptr);
     }
+    reset_all_state() {
+        wasm.motiondetector_reset_all_state(this.__wbg_ptr);
+    }
     /**
      * @returns {number}
      */

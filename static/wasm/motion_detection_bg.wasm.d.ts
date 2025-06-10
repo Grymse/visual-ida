@@ -9,6 +9,7 @@ export const motiondetector_move_radially: (a: number, b: any) => void;
 export const motiondetector_move_spiral: (a: number, b: any) => void;
 export const motiondetector_move_wave: (a: number, b: any) => void;
 export const motiondetector_reset_persistence: (a: number) => void;
+export const motiondetector_reset_all_state: (a: number) => void;
 export const motiondetector_get_buffer_size: (a: number) => number;
 export const __wbindgen_exn_store: (a: number) => void;
 export const __externref_table_alloc: () => number;

@@ -134,6 +134,12 @@ export class MotionDetection {
 		this._state.hasError = false;
 		this._state.errorMessage = null;
 
+		// Reset timing state for clean restart
+		this.framesInCurrentSecond = 0;
+		this.timeOfFrameSecond = Date.now();
+		this._state.fps = 0;
+		this._state.computeTime = 0;
+
 		// Set up canvas dimensions to match video
 		const ctx = this.canvasElement.getContext('2d');
 		if (!ctx) {
@@ -147,13 +153,22 @@ export class MotionDetection {
 		this.canvasElement.height = this.videoElement.videoHeight || 480;
 		
 		// Initialize motion detector if using WASM
-		if (this.MotionDetector && !this.motionDetector) {
+		if (this.MotionDetector) {
 			try {
-				this.motionDetector = new this.MotionDetector(
-					this.canvasElement.width, 
-					this.canvasElement.height
-				);
-				console.log('✅ WASM Motion detector initialized');
+				// Create new motion detector (or recreate if it was freed)
+				if (!this.motionDetector) {
+					this.motionDetector = new this.MotionDetector(
+						this.canvasElement.width, 
+						this.canvasElement.height
+					);
+					console.log('✅ WASM Motion detector initialized');
+				}
+
+				// Always reset state when starting motion detection
+				if (this.motionDetector.reset_all_state) {
+					this.motionDetector.reset_all_state();
+					console.log('🔄 Motion detection state reset');
+				}
 			} catch (error) {
 				console.error('Failed to initialize WASM motion detector:', error);
 				this._state.hasError = true;
@@ -161,7 +176,6 @@ export class MotionDetection {
 				return false;
 			}
 		}
-		// Reset state (no more previousImageData - cached in Rust now!)
 
 		this.processMotionDetection();
 		return true;
@@ -225,10 +239,9 @@ export class MotionDetection {
 			// Draw current video frame to canvas
 			ctx.drawImage(this.videoElement, 0, 0, this.canvasElement.width, this.canvasElement.height);
 			const currentImageData = ctx.getImageData(0, 0, this.canvasElement.width, this.canvasElement.height);
-
+			
 			// Create output buffer
 			const outputImageData = ctx.createImageData(this.canvasElement.width, this.canvasElement.height);
-			
 			if (this.motionDetector) {
 				try {
 					// Use the new method with internal frame caching (50% less data transfer!)
@@ -259,10 +272,10 @@ export class MotionDetection {
 				console.error("WASM motion detector not initialized, no update available");
 			}
 
+
 			// Apply output to canvas
 			ctx.putImageData(outputImageData, 0, 0);
 
-			// No need to store frames - cached in Rust now!
 			// Count frames for FPS calculation
 			this.countFrames();
 			// Update compute time

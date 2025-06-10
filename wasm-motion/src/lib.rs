@@ -561,6 +561,26 @@ impl MotionDetector {
     }
 
     #[wasm_bindgen]
+    pub fn reset_all_state(&mut self) {
+        // Reset persistence buffer
+        for val in &mut self.persistence_buffer {
+            *val = 0.0;
+        }
+
+        // Reset temp buffer
+        self.temp_buffer.clear();
+
+        // Reset previous frame cache
+        self.previous_frame_cache.clear();
+
+        // Reset first frame flag
+        self.is_first_frame = true;
+
+        // Reset phase for wave animations
+        self.phase = 0.0;
+    }
+
+    #[wasm_bindgen]
     pub fn get_buffer_size(&self) -> usize {
         self.persistence_buffer.len()
     }
