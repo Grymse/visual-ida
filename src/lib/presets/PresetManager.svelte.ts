@@ -187,7 +187,7 @@ export class PresetManager {
 	}
 
 	// Apply a preset's options
-	applyPreset(id: string): boolean {
+	applyPreset(id: string, useTransition: boolean = false): boolean {
 		const preset = this._presets.find(p => p.id === id);
 		if (!preset) {
 			console.warn(`Preset with id ${id} not found`);
@@ -200,32 +200,37 @@ export class PresetManager {
 		this._state.lastAppliedOptions = { ...preset.options };
 		this._state.hasUnsavedChanges = false;
 		
-		// Get current options for smooth transition
-		let currentOptions: MotionDetectionOptions;
-		if (this.getCurrentOptionsCallback) {
-			currentOptions = this.getCurrentOptionsCallback();
-		} else {
-			// Fallback: use default values
-			currentOptions = {
-				motionDecayRate: 0.8,
-				movementAngle: 280,
-				movementSpeed: 40,
-				motionThreshold: 30,
-				motionSensitivity: 1.5,
-				moveType: 'direction',
-				rotationSpeed: 0.1,
-				waveAmplitude: 5.0,
-				waveFrequency: 0.02,
-				wavePhase: 0.0,
-				waveDirection: 0
-			};
-		}
-
 		// Create a deep copy of target options
 		const targetOptions: MotionDetectionOptions = { ...preset.options };
 
-		// Start smooth transition
-		this.transitionManager.startTransition(currentOptions, targetOptions);
+		if (useTransition) {
+			// Get current options for smooth transition (only during cycling)
+			let currentOptions: MotionDetectionOptions;
+			if (this.getCurrentOptionsCallback) {
+				currentOptions = this.getCurrentOptionsCallback();
+			} else {
+				// Fallback: use default values
+				currentOptions = {
+					motionDecayRate: 0.8,
+					movementAngle: 280,
+					movementSpeed: 40,
+					motionThreshold: 30,
+					motionSensitivity: 1.5,
+					moveType: 'direction',
+					rotationSpeed: 0.1,
+					waveAmplitude: 5.0,
+					waveFrequency: 0.02,
+					wavePhase: 0.0,
+					waveDirection: 0
+				};
+			}
+
+			// Start smooth transition
+			this.transitionManager.startTransition(currentOptions, targetOptions);
+		} else {
+			// Apply immediately without transition (for manual selection)
+			this.transitionManager.applyImmediately(targetOptions);
+		}
 		
 		return true;
 	}
@@ -244,12 +249,66 @@ export class PresetManager {
 			return;
 		}
 
+		// Helper function to compare values with tolerance for floating-point numbers
+		const isSignificantlyDifferent = (current: any, saved: any, key: string): boolean => {
+			// Skip movementAngle as it's animated and constantly changing
+			if (key === 'movementAngle') return false;
+			
+			// For string values (like moveType), use exact comparison
+			if (typeof current === 'string' || typeof saved === 'string') {
+				return current !== saved;
+			}
+			
+			// For numeric values, use tolerance-based comparison
+			if (typeof current === 'number' && typeof saved === 'number') {
+				// Define tolerance based on the typical precision of each property
+				let tolerance = 0.05; // Default tolerance for most values
+				
+				// Adjust tolerance based on the property and its typical ranges
+				switch (key) {
+					case 'waveFrequency':
+						tolerance = 0.01; // Frequency ranges 0.001-2, step 0.001
+						break;
+					case 'rotationSpeed':
+						tolerance = 0.01; // Rotation ranges -3.14-3.14, step 0.001
+						break;
+					case 'movementSpeed':
+						tolerance = 1; // Speed ranges -30-100, step 1 (integer)
+						break;
+					case 'waveAmplitude':
+						tolerance = 1; // Amplitude ranges 0-500, step 0.1
+						break;
+					case 'motionDecayRate':
+						tolerance = 0.01; // Decay ranges 0.1-0.99, step 0.01
+						break;
+					case 'wavePhase':
+						tolerance = 0.05; // Phase ranges 0-6.28, step 0.01
+						break;
+					case 'motionThreshold':
+						tolerance = 1; // Threshold ranges 1-100, step 1 (integer)
+						break;
+					case 'motionSensitivity':
+						tolerance = 0.1; // Sensitivity typically decimal values
+						break;
+					case 'movementAngle':
+						tolerance = 1; // Angle ranges 0-360, step 1 (integer)
+						break;
+					case 'waveDirection':
+						tolerance = 0; // Integer values should be exact (0 or 1)
+						break;
+				}
+				
+				return Math.abs(current - saved) > tolerance;
+			}
+			
+			// Fallback to exact comparison
+			return current !== saved;
+		};
+
 		// Compare current options with last applied options
 		const hasChanges = Object.keys(currentOptions).some(key => {
-            if (key === 'movementAngle') return false;
-
 			const k = key as keyof MotionDetectionOptions;
-			return currentOptions[k] !== this._state.lastAppliedOptions![k];
+			return isSignificantlyDifferent(currentOptions[k], this._state.lastAppliedOptions![k], k);
 		});
 
 		this._state.hasUnsavedChanges = hasChanges;
@@ -280,7 +339,7 @@ export class PresetManager {
 	// Discard changes and revert to last applied preset
 	discardChanges(): void {
 		if (this._state.currentPresetId && this._state.lastAppliedOptions) {
-			this.applyPreset(this._state.currentPresetId);
+			this.applyPreset(this._state.currentPresetId, false); // No transition for manual discard
 		}
 	}
 
@@ -330,7 +389,7 @@ export class PresetManager {
 		// For single preset, just apply it
 		if (this._presets.length === 1) {
 			const onlyPreset = this._presets[0];
-			this.applyPreset(onlyPreset.id);
+			this.applyPreset(onlyPreset.id, true); // Use transition during cycling
 			this._state.lastCycleTime = Date.now();
 			this.scheduleNextCycle();
 			return;
@@ -346,7 +405,7 @@ export class PresetManager {
 		const randomPreset = availablePresets[randomIndex];
 
 		if (randomPreset) {
-			this.applyPreset(randomPreset.id);
+			this.applyPreset(randomPreset.id, true); // Use transition during cycling
 			this._state.lastCycleTime = Date.now();
 		}
 
@@ -365,7 +424,7 @@ export class PresetManager {
 		}
 
 		// Apply the preset first so user can see its current effects
-		this.applyPreset(id);
+		this.applyPreset(id, false); // No transition for manual editing
 		
 		// Then enter edit mode
 		this._state.isEditingPreset = true;
@@ -407,7 +466,7 @@ export class PresetManager {
 		this._state.isEditingPreset = false;
 		// Optionally revert to the saved preset
 		if (this._state.currentPresetId) {
-			this.applyPreset(this._state.currentPresetId);
+			this.applyPreset(this._state.currentPresetId, false); // No transition for manual cancel
 		}
 	}
 	// Get time until next cycle

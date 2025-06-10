@@ -53,16 +53,8 @@
 
 	// Watch for changes in motion options to detect unsaved changes
 	$effect(() => {
-		if (presetManager.state.currentPresetId) {
-			// Create a simplified check - we'll implement the full checkForUnsavedChanges method
-			const currentPreset = presetManager.currentPreset;
-			if (currentPreset && presetManager.state.lastAppliedOptions) {
-				const hasChanges =
-					JSON.stringify(motionDetection.options) !==
-					JSON.stringify(presetManager.state.lastAppliedOptions);
-				presetManager.state.hasUnsavedChanges = hasChanges;
-			}
-		}
+		// Use the proper tolerance-based unsaved changes detection
+		presetManager.checkForUnsavedChanges(motionDetection.options);
 	});
 
 	let maxComputeTime = $state(0);

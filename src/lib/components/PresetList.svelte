@@ -140,7 +140,7 @@
 					ondragleave={handleDragLeave}
 					ondrop={(e) => handleDrop(e, index)}
 					ondragend={handleDragEnd}
-					onclick={() => presetManager.applyPreset(preset.id)}
+					onclick={() => presetManager.applyPreset(preset.id, false)}
 				>
 					<div class="flex items-center gap-3">
 						<!-- Motion Type Icon -->

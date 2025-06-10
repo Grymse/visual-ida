@@ -136,6 +136,14 @@ export class PresetTransitionManager {
 		return this.transitionDuration;
 	}
 
+	// Apply options immediately without transition
+	applyImmediately(options: MotionDetectionOptions): void {
+		this.cancelTransition();
+		if (this.updateCallback) {
+			this.updateCallback(options);
+		}
+	}
+
 	// Cleanup
 	destroy(): void {
 		this.cancelTransition();
