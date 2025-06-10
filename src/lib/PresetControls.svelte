@@ -61,6 +61,10 @@
 		}
 	}
 
+	function handleToggleControls() {
+		showControls = !showControls;
+	}
+
 	function applySettings() {
 		presetManager.transitions.setDuration(transitionDuration);
 		presetManager.setCycleInterval(cycleDuration);
@@ -80,11 +84,6 @@
 
 	function handleDiscardChanges() {
 		presetManager.discardChanges?.();
-	}
-
-	function formatTimeRemaining(ms: number): string {
-		const seconds = Math.ceil(ms / 1000);
-		return `${seconds}s`;
 	}
 
 	// Inline editing functions
@@ -114,43 +113,32 @@
 			cancelEditingPresetName();
 		}
 	}
-
-	let timeRemaining = $state(0);
-
-	// Update time remaining every second when cycling
-	$effect(() => {
-		if (presetManager.state.isPlaying) {
-			const interval = setInterval(() => {
-				timeRemaining = presetManager.getTimeUntilNextCycle();
-			}, 100);
-			return () => clearInterval(interval);
-		}
-	});
 </script>
 
 <!-- Preset Controls Sidebar -->
 <div class="fixed top-0 left-0 z-50 h-full">
 	<!-- Toggle Button -->
-	<Button
-		variant="secondary"
-		size="sm"
-		class={cn(
-			'absolute top-4 shadow-lg backdrop-blur-sm transition-all duration-300',
-			showControls ? 'left-[320px]' : 'left-4',
-			'bg-background/80 hover:bg-background/90 border-border/50 border'
-		)}
-		onclick={() => (showControls = !showControls)}
-	>
-		<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-			<path
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				stroke-width="2"
-				d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-			/>
-		</svg>
-		Presets
-	</Button>
+	{#if !showControls}
+		<Button
+			variant="secondary"
+			size="sm"
+			class={cn(
+				'absolute top-4 left-4 shadow-lg backdrop-blur-sm transition-all duration-300',
+				'bg-background/80 hover:bg-background/90 border-border/50 border'
+			)}
+			onclick={handleToggleControls}
+		>
+			<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					stroke-width="2"
+					d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+				/>
+			</svg>
+			Presets
+		</Button>
+	{/if}
 
 	<!-- Sidebar Panel -->
 	<div
@@ -159,7 +147,7 @@
 			showControls ? 'translate-x-0' : '-translate-x-full'
 		)}
 	>
-		<div class="h-full overflow-y-auto p-4">
+		<div class="flex h-full flex-col p-4">
 			<!-- Header -->
 			<div class="mb-6 flex items-center justify-between">
 				<h2 class="text-foreground text-lg font-semibold">Motion Presets</h2>
@@ -176,7 +164,7 @@
 			</div>
 
 			<!-- Action Buttons -->
-			<div class="mb-6 flex gap-2">
+			<div class="mb-6 flex flex-shrink-0 gap-2">
 				<Button
 					variant="default"
 					size="sm"
@@ -232,34 +220,30 @@
 								d="M6 4h4v16H6zM14 4h4v16h-4z"
 							/>
 						</svg>
-						Stop
+						Stop cycle
 					{:else}
-						<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke-width="1.5"
+							stroke="currentColor"
+							class="size-6"
+						>
 							<path
 								stroke-linecap="round"
 								stroke-linejoin="round"
-								stroke-width="2"
-								d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h8"
+								d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z"
 							/>
 						</svg>
-						Cycle
+						Start cycle
 					{/if}
 				</Button>
 			</div>
 
-			<!-- Cycling Status -->
-			{#if presetManager.state.isPlaying}
-				<div class="bg-primary/10 border-primary/20 mb-6 rounded-lg border p-3">
-					<div class="text-primary text-sm font-medium">Cycling Active</div>
-					<div class="text-muted-foreground text-xs">
-						Next preset in: {formatTimeRemaining(timeRemaining)}
-					</div>
-				</div>
-			{/if}
-
 			<!-- Unsaved Changes Banner -->
-			{#if presetManager.state.hasUnsavedChanges && presetManager.currentPreset}
-				<div class="mb-6 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
+			{#if presetManager.state.hasUnsavedChanges && presetManager.currentPreset && !presetManager.state.isPlaying}
+				<div class="mb-6 flex-shrink-0 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
 					<div class="mb-3 flex items-center justify-between">
 						<div class="text-sm font-medium text-yellow-600 dark:text-yellow-400">
 							Unsaved Changes
@@ -289,35 +273,6 @@
 				onCancelEdit={cancelEditingPresetName}
 				onKeydown={handlePresetNameKeydown}
 			/>
-
-			<!-- Editing Controls -->
-			{#if presetManager.state.isEditingPreset}
-				<div class="border-border/50 mt-6 space-y-4 border-t pt-6">
-					<div class="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
-						<div class="mb-2 text-sm font-medium text-yellow-600 dark:text-yellow-400">
-							Editing: {presetManager.currentPreset?.name}
-						</div>
-						<div class="flex gap-2">
-							<Button
-								variant="default"
-								size="sm"
-								onclick={() => presetManager.saveEditingPreset(currentMotionOptions)}
-								class="flex-1"
-							>
-								Save Changes
-							</Button>
-							<Button
-								variant="outline"
-								size="sm"
-								onclick={() => presetManager.cancelEditingPreset()}
-								class="flex-1"
-							>
-								Cancel
-							</Button>
-						</div>
-					</div>
-				</div>
-			{/if}
 		</div>
 	</div>
 </div>
@@ -334,23 +289,7 @@
 		<div class="space-y-4 py-4">
 			<div class="space-y-2">
 				<label for="preset-name" class="text-foreground text-sm font-medium">Name</label>
-				<Input
-					id="preset-name"
-					bind:value={newPresetName}
-					placeholder="Enter preset name"
-					maxlength="50"
-				/>
-			</div>
-			<div class="space-y-2">
-				<label for="preset-description" class="text-foreground text-sm font-medium"
-					>Description (optional)</label
-				>
-				<Input
-					id="preset-description"
-					bind:value={newPresetDescription}
-					placeholder="Describe this preset..."
-					maxlength="200"
-				/>
+				<Input id="preset-name" bind:value={newPresetName} placeholder="Enter preset name" />
 			</div>
 		</div>
 		<Dialog.Footer>
@@ -377,29 +316,50 @@
 						>{(transitionDuration / 1000).toFixed(1)}s</span
 					>
 				</label>
-				<Slider bind:value={transitionDuration} min={500} max={10000} step={100} class="w-full" />
+				<Slider
+					type="single"
+					bind:value={transitionDuration}
+					min={500}
+					max={10000}
+					step={100}
+					class="w-full"
+				/>
 				<p class="text-muted-foreground text-xs">
 					How long it takes to smoothly change between presets
 				</p>
 			</div>
 
 			<div class="space-y-3">
-				<label class="text-foreground text-sm font-medium">
+				<div class="text-foreground text-sm font-medium">
 					Cycle Duration:
 					<span class="text-primary ml-1 font-medium">{(cycleDuration / 1000).toFixed(0)}s</span>
-				</label>
-				<Slider bind:value={cycleDuration} min={3000} max={300000} step={1000} class="w-full" />
+				</div>
+				<Slider
+					type="single"
+					bind:value={cycleDuration}
+					min={3000}
+					max={300000}
+					step={1000}
+					class="w-full"
+				/>
 				<p class="text-muted-foreground text-xs">
 					How often to switch to a new preset during cycling
 				</p>
 			</div>
 
 			<div class="space-y-3">
-				<label class="text-foreground text-sm font-medium">
+				<div class="text-foreground text-sm font-medium">
 					Color Change Interval:
 					<span class="text-primary ml-1 font-medium">{(colorInterval / 1000).toFixed(0)}s</span>
-				</label>
-				<Slider bind:value={colorInterval} min={1000} max={120000} step={1000} class="w-full" />
+				</div>
+				<Slider
+					type="single"
+					bind:value={colorInterval}
+					min={1000}
+					max={120000}
+					step={1000}
+					class="w-full"
+				/>
 				<p class="text-muted-foreground text-xs">How often colors change to new random values</p>
 			</div>
 		</div>

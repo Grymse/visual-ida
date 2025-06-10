@@ -43,6 +43,12 @@ export class PresetManager {
 		return this._presets;
 	}
 
+	set presets(value: MotionDetectionPreset[]) {
+		// Create a new array to trigger reactivity
+		this._presets = [...value];
+		this.savePresets();
+	}
+
 	get state() {
 		return this._state;
 	}
@@ -188,7 +194,6 @@ export class PresetManager {
 			return false;
 		}
 
-		console.log('Applying preset:', preset.name, preset.options);
 		this._state.currentPresetId = id;
 		
 		// Store the applied options for change detection
@@ -227,6 +232,13 @@ export class PresetManager {
 
 	// Check if current settings differ from the last applied preset
 	checkForUnsavedChanges(currentOptions: MotionDetectionOptions): void {
+		// Don't check for unsaved changes when cycling is active
+		// as transitions between presets create false positives
+		if (this._state.isPlaying) {
+			this._state.hasUnsavedChanges = false;
+			return;
+		}
+
 		if (!this._state.lastAppliedOptions || !this._state.currentPresetId) {
 			this._state.hasUnsavedChanges = false;
 			return;
@@ -282,6 +294,9 @@ export class PresetManager {
 		this._state.isPlaying = true;
 		this._state.lastCycleTime = 0;
 		
+		// Clear unsaved changes flag when cycling starts
+		this._state.hasUnsavedChanges = false;
+		
 		// Apply a random preset immediately instead of waiting
 		this.cycleToNextPreset();
 	}
@@ -296,6 +311,7 @@ export class PresetManager {
 		
 		// Cancel any ongoing transition when stopping cycle
 		this.transitionManager.cancelTransition();
+		this._state.hasUnsavedChanges = false;
 	}
 
 	// Schedule the next preset cycle
@@ -420,8 +436,6 @@ export class PresetManager {
 		
 		// Save to localStorage
 		this.savePresets();
-		
-		console.log(`Reordered preset "${movedPreset.name}" from index ${fromIndex} to ${toIndex}`);
 	}
 
 	// Cleanup

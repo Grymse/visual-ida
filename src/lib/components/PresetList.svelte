@@ -3,6 +3,7 @@
 	import type { PresetManager } from '../presets/PresetManager.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import { Progress } from '$lib/components/ui/progress';
 	import { cn } from '$lib/utils';
 
 	interface Props {
@@ -27,6 +28,22 @@
 
 	let draggedIndex: number | null = $state(null);
 	let dragOverIndex: number | null = $state(null);
+	let cycleProgress = $state(0);
+
+	// Update cycling progress
+	$effect(() => {
+		if (presetManager.state.isPlaying) {
+			const interval = setInterval(() => {
+				const timeRemaining = presetManager.getTimeUntilNextCycle();
+				const totalTime = presetManager.state.cycleInterval;
+				const elapsed = totalTime - timeRemaining;
+				cycleProgress = Math.min(100, (elapsed / totalTime) * 100);
+			}, 100);
+			return () => clearInterval(interval);
+		} else {
+			cycleProgress = 0;
+		}
+	});
 
 	function handleDragStart(event: DragEvent, index: number) {
 		draggedIndex = index;
@@ -49,18 +66,9 @@
 
 	function handleDrop(event: DragEvent, dropIndex: number) {
 		event.preventDefault();
-		console.log('handleDrop called:', { draggedIndex, dropIndex });
 
 		if (draggedIndex !== null && draggedIndex !== dropIndex) {
-			console.log('Attempting to reorder presets...');
-
-			// Use the reorderPresets method if available
-			if (typeof presetManager.reorderPresets === 'function') {
-				presetManager.reorderPresets(draggedIndex, dropIndex);
-				console.log('Reordered presets using reorderPresets method');
-			} else {
-				console.error('reorderPresets method not available on presetManager');
-			}
+			presetManager.reorderPresets(draggedIndex, dropIndex);
 		}
 
 		draggedIndex = null;
@@ -112,7 +120,7 @@
 			<p class="text-xs opacity-70">Create a preset to save your motion settings</p>
 		</div>
 	{:else}
-		<div class="flex-1 space-y-1 overflow-y-auto">
+		<div class="min-h-0 flex-1 space-y-1 overflow-y-auto">
 			{#each presetManager.presets as preset, index (preset.id)}
 				<div
 					class={cn(
@@ -135,20 +143,6 @@
 					onclick={() => presetManager.applyPreset(preset.id)}
 				>
 					<div class="flex items-center gap-3">
-						<!-- Drag Handle -->
-						<div
-							class="text-muted-foreground/50 hover:text-muted-foreground flex-shrink-0 cursor-grab transition-colors active:cursor-grabbing"
-						>
-							<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M8 9l4-4 4 4m0 6l-4 4-4-4"
-								/>
-							</svg>
-						</div>
-
 						<!-- Motion Type Icon -->
 						<div class="text-muted-foreground flex-shrink-0">
 							<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,6 +199,22 @@
 							</Button>
 						</div>
 					</div>
+
+					<!-- Cycling Progress Bar (only shown for active preset during cycling) -->
+					{#if presetManager.state.isPlaying && presetManager.state.currentPresetId === preset.id}
+						<div class="mt-2 flex items-center gap-2">
+							<div class="flex-1">
+								<Progress value={cycleProgress} class="h-1.5" />
+							</div>
+							<div class="text-muted-foreground min-w-[3ch] font-mono text-xs">
+								{Math.ceil(
+									(presetManager.state.cycleInterval -
+										(presetManager.state.cycleInterval * cycleProgress) / 100) /
+										1000
+								)}s
+							</div>
+						</div>
+					{/if}
 				</div>
 			{/each}
 		</div>

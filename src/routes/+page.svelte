@@ -48,11 +48,6 @@
 			presetsCopy.splice(toIndex, 0, movedPreset);
 
 			this.presets = presetsCopy;
-
-			// Save to localStorage if savePresets method exists
-			if (typeof this.savePresets === 'function') {
-				this.savePresets();
-			}
 		};
 	}
 
@@ -232,6 +227,7 @@
 		isMotionDetectionActive={motionDetection.state.isActive}
 		{toggleMotionDetection}
 		motionDetectionOptions={motionDetection.options}
+		{presetManager}
 	/>
 </AutoHideUI>
 

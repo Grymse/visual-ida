@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { MotionDetectionOptions } from './MotionDetection.svelte';
+	import type { PresetManager } from './presets/PresetManager.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Slider } from '$lib/components/ui/slider';
 	import * as Select from '$lib/components/ui/select/index.js';
@@ -9,15 +10,38 @@
 		isMotionDetectionActive?: boolean;
 		toggleMotionDetection?: () => void;
 		motionDetectionOptions: MotionDetectionOptions;
+		presetManager: PresetManager;
 	}
 
 	let {
 		isMotionDetectionActive = false,
 		toggleMotionDetection = () => {},
-		motionDetectionOptions = $bindable<MotionDetectionOptions>()
+		motionDetectionOptions = $bindable<MotionDetectionOptions>(),
+		presetManager
 	}: Props = $props();
 
 	let showFilters = $state(false);
+	let showCyclingMessage = $state(false);
+
+	function handleToggleFilters() {
+		// If cycling is active, don't allow opening controls
+		if (presetManager.state.isPlaying && !showFilters) {
+			// Show a brief message instead
+			showCyclingMessage = true;
+			setTimeout(() => {
+				showCyclingMessage = false;
+			}, 3000); // Hide message after 3 seconds
+			return;
+		}
+		showFilters = !showFilters;
+	}
+
+	// Automatically close controls when cycling starts
+	$effect(() => {
+		if (presetManager.state.isPlaying && showFilters) {
+			showFilters = false;
+		}
+	});
 
 	function toggleFiltersPanel() {
 		showFilters = !showFilters;
@@ -27,26 +51,39 @@
 <!-- Motion Detection Controls Sidebar -->
 <div class="fixed top-0 right-0 z-50 h-full">
 	<!-- Toggle Button -->
-	<Button
-		variant="secondary"
-		size="sm"
-		class={cn(
-			'absolute top-4 shadow-lg backdrop-blur-sm transition-all duration-300',
-			showFilters ? 'right-[280px]' : 'right-4',
-			'bg-background/80 hover:bg-background/90 border-border/50 border'
-		)}
-		onclick={() => (showFilters = !showFilters)}
-	>
-		<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-			<path
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				stroke-width="2"
-				d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4"
-			/>
-		</svg>
-		Controls
-	</Button>
+	{#if !showFilters}
+		<Button
+			variant="secondary"
+			size="sm"
+			class={cn(
+				'absolute top-4 right-4 shadow-lg backdrop-blur-sm transition-all duration-300',
+				'bg-background/80 hover:bg-background/90 border-border/50 border'
+			)}
+			onclick={handleToggleFilters}
+		>
+			<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					stroke-width="2"
+					d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4"
+				/>
+			</svg>
+			Controls
+		</Button>
+	{/if}
+
+	<!-- Cycling Message -->
+	{#if showCyclingMessage}
+		<div
+			class={cn(
+				'absolute top-16 right-4 shadow-lg backdrop-blur-sm transition-all duration-300',
+				'bg-primary/90 text-primary-foreground border-primary/50 rounded-md border px-3 py-2 text-sm'
+			)}
+		>
+			Stop cycling to access controls
+		</div>
+	{/if}
 
 	<!-- Sidebar Panel -->
 	<div
