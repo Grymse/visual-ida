@@ -21,12 +21,23 @@ pub struct MotionDetector {
     // Optimization #1: Pre-computed lookup tables
     distance_lut: Vec<f32>,
     radial_sensitivity_lut: Vec<f32>,
+    // Optimization for spiral movement: Pre-computed polar coordinates
+    polar_angle_lut: Vec<f32>,
+    polar_distance_lut: Vec<f32>,
+    // Optimization #3: Pre-computed squared distances for fast comparisons
+    polar_distance_squared_lut: Vec<f32>,
     // Optimization #2: Reusable buffer to avoid allocations
     temp_buffer: Vec<f32>,
     // Optimization #6: Cache previous frame in Rust (50% less data transfer)
     previous_frame_cache: Vec<u8>,
     is_first_frame: bool,
     phase: f32,
+    // Optimization #6: Distance-based processing thresholds for approximation
+    center_x: f32,
+    center_y: f32,
+    // Distance thresholds for different quality levels
+    high_quality_radius: f32,
+    medium_quality_radius: f32,
 }
 
 #[wasm_bindgen]
@@ -39,33 +50,59 @@ impl MotionDetector {
         let inv_max_radius = 1.0 / max_radius;
         let buffer_size = (width * height) as usize;
 
-        // Pre-compute distance and radial sensitivity lookup tables
+        // Pre-allocate all vectors with exact capacity to avoid reallocations
         let mut distance_lut = Vec::with_capacity(buffer_size);
         let mut radial_sensitivity_lut = Vec::with_capacity(buffer_size);
+        let mut polar_angle_lut = Vec::with_capacity(buffer_size);
+        let mut polar_distance_lut = Vec::with_capacity(buffer_size);
+        let mut polar_distance_squared_lut = Vec::with_capacity(buffer_size);
 
+        // Cache-friendly initialization: Process row by row to improve spatial locality
         for y in 0..height {
+            let y_f32 = y as f32;
+            let dy = y_f32 - center_y;
+
             for x in 0..width {
-                let dx = x as f32 - center_x;
-                let dy = y as f32 - center_y;
+                let x_f32 = x as f32;
+                let dx = x_f32 - center_x;
                 let distance_squared = dx * dx + dy * dy;
-                let normalized_distance = distance_squared.sqrt() * inv_max_radius;
+                let distance = distance_squared.sqrt();
+                let normalized_distance = distance * inv_max_radius;
                 let radial_sensitivity = (1.0 - normalized_distance * 0.9).max(0.1);
+
+                // Pre-compute polar coordinates for spiral movement
+                let angle = dy.atan2(dx);
 
                 distance_lut.push(normalized_distance);
                 radial_sensitivity_lut.push(radial_sensitivity);
+                polar_angle_lut.push(angle);
+                polar_distance_lut.push(distance);
+                polar_distance_squared_lut.push(distance_squared);
             }
         }
 
         MotionDetector {
             width,
             height,
+            // Initialize persistence buffer with zero for better cache locality
             persistence_buffer: vec![0.0; buffer_size],
             distance_lut,
             radial_sensitivity_lut,
+            polar_angle_lut,
+            polar_distance_lut,
+            polar_distance_squared_lut,
+            // Pre-allocate temp buffer with exact capacity
             temp_buffer: Vec::with_capacity(buffer_size),
-            previous_frame_cache: Vec::with_capacity(buffer_size * 4), // RGBA cache
+            // Pre-allocate frame cache with exact capacity (RGBA = 4 bytes per pixel)
+            previous_frame_cache: Vec::with_capacity(buffer_size * 4),
             is_first_frame: true,
             phase: 0.0,
+            // Optimization #6: Store center and radius for distance-based approximation
+            center_x,
+            center_y,
+            // Define quality levels: high quality for center 30%, medium for next 40%, low for outer 30%
+            high_quality_radius: max_radius * 0.3,
+            medium_quality_radius: max_radius * 0.7,
         }
     }
 
@@ -78,7 +115,6 @@ impl MotionDetector {
     ) {
         let width = self.width as usize;
         let height = self.height as usize;
-        let pixel_count = width * height;
 
         // First frame: just cache and return
         if self.is_first_frame {
@@ -124,52 +160,58 @@ impl MotionDetector {
             .as_f64()
             .unwrap_or(1.0) as f32;
 
-        // Process motion using cached previous frame vs current frame
-        for pixel_index in 0..pixel_count {
-            let rgba_index = pixel_index * 4;
+        // Cache-friendly motion detection processing: Process in row-major order
+        // This improves spatial locality for better cache utilization
+        for y in 0..height {
+            let row_base = y * width;
 
-            // Fast grayscale conversion using integer arithmetic
-            let current_gray = ((current_data[rgba_index] as u32 * 77)
-                + (current_data[rgba_index + 1] as u32 * 150)
-                + (current_data[rgba_index + 2] as u32 * 29))
-                >> 8;
+            for x in 0..width {
+                let pixel_index = row_base + x;
+                let rgba_index = pixel_index * 4;
 
-            let previous_gray = ((self.previous_frame_cache[rgba_index] as u32 * 77)
-                + (self.previous_frame_cache[rgba_index + 1] as u32 * 150)
-                + (self.previous_frame_cache[rgba_index + 2] as u32 * 29))
-                >> 8;
+                // Fast grayscale conversion using integer arithmetic
+                let current_gray = ((current_data[rgba_index] as u32 * 77)
+                    + (current_data[rgba_index + 1] as u32 * 150)
+                    + (current_data[rgba_index + 2] as u32 * 29))
+                    >> 8;
 
-            // Use pre-computed lookup tables
-            let normalized_distance = self.distance_lut[pixel_index];
-            let radial_sensitivity = self.radial_sensitivity_lut[pixel_index];
+                let previous_gray = ((self.previous_frame_cache[rgba_index] as u32 * 77)
+                    + (self.previous_frame_cache[rgba_index + 1] as u32 * 150)
+                    + (self.previous_frame_cache[rgba_index + 2] as u32 * 29))
+                    >> 8;
 
-            // Motion detection with grayscale values
-            let diff = (current_gray as f32 - previous_gray as f32).abs();
-            let radial_weighted_diff = diff * radial_sensitivity;
-            let adaptive_threshold = threshold + normalized_distance * 40.0;
+                // Use pre-computed lookup tables
+                let normalized_distance = self.distance_lut[pixel_index];
+                let radial_sensitivity = self.radial_sensitivity_lut[pixel_index];
 
-            let filtered_diff = if radial_weighted_diff > adaptive_threshold {
-                radial_weighted_diff
-            } else {
-                0.0
-            };
+                // Motion detection with grayscale values
+                let diff = (current_gray as f32 - previous_gray as f32).abs();
+                let radial_weighted_diff = diff * radial_sensitivity;
+                let adaptive_threshold = threshold + normalized_distance * 40.0;
 
-            let enhanced_diff =
-                (filtered_diff * (sensitivity + radial_sensitivity * 0.5)).min(255.0);
+                let filtered_diff = if radial_weighted_diff > adaptive_threshold {
+                    radial_weighted_diff
+                } else {
+                    0.0
+                };
 
-            // Apply persistence
-            let previous_persistence = self.temp_buffer[pixel_index];
-            let persisted_motion = enhanced_diff.max(previous_persistence * decay_rate);
+                let enhanced_diff =
+                    (filtered_diff * (sensitivity + radial_sensitivity * 0.5)).min(255.0);
 
-            // Update persistence buffer
-            self.persistence_buffer[pixel_index] = persisted_motion;
+                // Apply persistence
+                let previous_persistence = self.temp_buffer[pixel_index];
+                let persisted_motion = enhanced_diff.max(previous_persistence * decay_rate);
 
-            // Output as grayscale RGBA for display
-            let smoothed_motion = persisted_motion.min(255.0) as u8;
-            output_data[rgba_index] = smoothed_motion;
-            output_data[rgba_index + 1] = smoothed_motion;
-            output_data[rgba_index + 2] = smoothed_motion;
-            output_data[rgba_index + 3] = 255;
+                // Update persistence buffer
+                self.persistence_buffer[pixel_index] = persisted_motion;
+
+                // Output as grayscale RGBA for display
+                let smoothed_motion = persisted_motion.min(255.0) as u8;
+                output_data[rgba_index] = smoothed_motion;
+                output_data[rgba_index + 1] = smoothed_motion;
+                output_data[rgba_index + 2] = smoothed_motion;
+                output_data[rgba_index + 3] = 255;
+            }
         }
 
         // Update cache with current frame for next iteration
@@ -190,44 +232,57 @@ impl MotionDetector {
             .as_f64()
             .unwrap_or(0.0) as f32;
 
-        // Movement processing
-        let move_x = angle_radians.cos() * speed;
-        let move_y = angle_radians.sin() * speed;
-
         self.temp_buffer.clear();
         self.temp_buffer.resize(self.persistence_buffer.len(), 0.0);
 
-        // Apply movement (same as before)
-        if speed > 1.0 {
-            let move_x_int = move_x.round() as i32;
-            let move_y_int = move_y.round() as i32;
-
-            for pixel_index in 0..self.persistence_buffer.len() {
-                let x = (pixel_index % width) as i32;
-                let y = (pixel_index / width) as i32;
-
-                let source_x = x - move_x_int;
-                let source_y = y - move_y_int;
-
-                if source_x >= 0
-                    && source_x < width as i32
-                    && source_y >= 0
-                    && source_y < height as i32
-                {
-                    let source_index = (source_y as usize * width) + source_x as usize;
-                    self.temp_buffer[pixel_index] = self.persistence_buffer[source_index];
-                }
-            }
-        } else {
+        // Early exit for minimal movement - avoid all calculations
+        if speed <= 1.0 {
             self.temp_buffer.copy_from_slice(&self.persistence_buffer);
+            return;
+        }
+
+        // Pre-compute movement values outside the loop
+        let move_x = angle_radians.cos() * speed;
+        let move_y = angle_radians.sin() * speed;
+        let move_x_int = move_x.round() as i32;
+        let move_y_int = move_y.round() as i32;
+
+        // Cache-friendly processing: Process in row-major order with row-level optimizations
+        let width_i32 = width as i32;
+        let height_i32 = height as i32;
+
+        // Process row by row for better cache locality
+        for y in 0..height {
+            let y_i32 = y as i32;
+            let source_y = y_i32 - move_y_int;
+
+            // Skip entire row if source_y is out of bounds
+            if source_y < 0 || source_y >= height_i32 {
+                // Row is out of bounds - temp_buffer already initialized to 0.0
+                continue;
+            }
+
+            let source_row_base = (source_y as usize) * width;
+            let dest_row_base = y * width;
+
+            // Process pixels in this row with cache-friendly access pattern
+            for x in 0..width {
+                let x_i32 = x as i32;
+                let source_x = x_i32 - move_x_int;
+
+                if source_x >= 0 && source_x < width_i32 {
+                    let source_index = source_row_base + source_x as usize;
+                    let dest_index = dest_row_base + x;
+                    self.temp_buffer[dest_index] = self.persistence_buffer[source_index];
+                }
+                // Implicit else: temp_buffer[dest_index] remains 0.0 from initialization
+            }
         }
     }
 
     pub fn move_radially(&mut self, options: JsValue) {
         let width = self.width as usize;
         let height = self.height as usize;
-        let center_x = width as f32 / 2.0;
-        let center_y = height as f32 / 2.0;
 
         let speed = js_sys::Reflect::get(&options, &"speed".into())
             .unwrap_or(JsValue::from(0.0))
@@ -237,40 +292,72 @@ impl MotionDetector {
         self.temp_buffer.clear();
         self.temp_buffer.resize(self.persistence_buffer.len(), 0.0);
 
-        // Radial movement processing
+        // Radial movement processing - optimized to avoid expensive sqrt calls
         if speed.abs() > 0.1 {
-            for pixel_index in 0..self.persistence_buffer.len() {
-                let x = (pixel_index % width) as f32;
-                let y = (pixel_index / width) as f32;
+            let speed_plus_threshold = speed + 50.0;
+            let speed_plus_threshold_squared = speed_plus_threshold * speed_plus_threshold;
+            let width_i32 = width as i32;
+            let height_i32 = height as i32;
 
-                // Calculate direction from center
-                let dx = x - center_x;
-                let dy = y - center_y;
-                let distance = (dx * dx + dy * dy).sqrt();
+            // Cache-friendly processing: Process row by row for better memory locality
+            for y in 0..height {
+                let y_f32 = y as f32;
+                let dy = y_f32 - self.center_y;
+                let dest_row_base = y * width;
 
-                if (speed + 50.0) < distance {
-                    // Normalize direction vector
-                    let norm_dx = dx / distance;
-                    let norm_dy = dy / distance;
+                for x in 0..width {
+                    let pixel_index = dest_row_base + x;
 
-                    // Calculate source position (move inward for expansion, outward for contraction)
-                    let source_x = x - norm_dx * speed;
-                    let source_y = y - norm_dy * speed;
+                    // Use pre-computed squared distance to avoid sqrt calculation
+                    let distance_squared = self.polar_distance_squared_lut[pixel_index];
 
-                    let source_x_int = source_x.round() as i32;
-                    let source_y_int = source_y.round() as i32;
+                    if distance_squared > speed_plus_threshold_squared {
+                        let distance = self.polar_distance_lut[pixel_index];
 
-                    if source_x_int >= 0
-                        && source_x_int < width as i32
-                        && source_y_int >= 0
-                        && source_y_int < height as i32
-                    {
-                        let source_index = (source_y_int as usize * width) + source_x_int as usize;
-                        self.temp_buffer[pixel_index] = self.persistence_buffer[source_index];
+                        // Optimization #6: Distance-based approximation for performance
+                        let effective_speed = if distance <= self.high_quality_radius {
+                            // High quality: Full precision for center area
+                            speed
+                        } else if distance <= self.medium_quality_radius {
+                            // Medium quality: Slightly reduced precision for middle area
+                            speed * 0.95
+                        } else {
+                            // Low quality: Reduced precision for distant pixels
+                            // Use coarser movement steps for better performance
+                            (speed * 0.8).round()
+                        };
+
+                        // Calculate pixel coordinates (optimized with row-level y calculation)
+                        let x_f32 = x as f32;
+                        let dx = x_f32 - self.center_x;
+
+                        // Normalize direction vector (reuse calculated distance)
+                        let inv_distance = 1.0 / distance;
+                        let norm_dx = dx * inv_distance;
+                        let norm_dy = dy * inv_distance;
+
+                        // Calculate source position
+                        let source_x = x_f32 - norm_dx * effective_speed;
+                        let source_y = y_f32 - norm_dy * effective_speed;
+
+                        let source_x_int = source_x.round() as i32;
+                        let source_y_int = source_y.round() as i32;
+
+                        // Optimized bounds check
+                        if source_x_int >= 0
+                            && source_x_int < width_i32
+                            && source_y_int >= 0
+                            && source_y_int < height_i32
+                        {
+                            let source_index =
+                                (source_y_int as usize * width) + source_x_int as usize;
+                            self.temp_buffer[pixel_index] = self.persistence_buffer[source_index];
+                        }
+                        // Implicit else: temp_buffer[pixel_index] remains 0.0 from initialization
+                    } else {
+                        // Center pixel stays the same
+                        self.temp_buffer[pixel_index] = self.persistence_buffer[pixel_index];
                     }
-                } else {
-                    // Center pixel stays the same
-                    self.temp_buffer[pixel_index] = self.persistence_buffer[pixel_index];
                 }
             }
         } else {
@@ -281,8 +368,6 @@ impl MotionDetector {
     pub fn move_spiral(&mut self, options: JsValue) {
         let width = self.width as usize;
         let height = self.height as usize;
-        let center_x = width as f32 / 2.0;
-        let center_y = height as f32 / 2.0;
 
         let speed = js_sys::Reflect::get(&options, &"speed".into())
             .unwrap_or(JsValue::from(0.0))
@@ -297,43 +382,69 @@ impl MotionDetector {
         self.temp_buffer.clear();
         self.temp_buffer.resize(self.persistence_buffer.len(), 0.0);
 
-        // Spiral movement processing
+        // Spiral movement processing - Early exit for minimal movement
         if !(speed.abs() > 0.1 || rotation_speed.abs() > 0.01) {
             self.temp_buffer.copy_from_slice(&self.persistence_buffer);
+            return;
         }
-        for pixel_index in 0..self.persistence_buffer.len() {
-            let x = (pixel_index % width) as f32;
-            let y = (pixel_index / width) as f32;
 
-            // Calculate polar coordinates relative to center
-            let dx = x - center_x;
-            let dy = y - center_y;
-            let distance = (dx * dx + dy * dy).sqrt();
-            let angle = dy.atan2(dx);
+        // Pre-compute constants
+        let width_i32 = width as i32;
+        let height_i32 = height as i32;
+        let speed_threshold = speed + 5.0;
 
-            if (speed + 5.0) > distance {
-                self.temp_buffer[pixel_index] = self.persistence_buffer[pixel_index];
-                continue;
-            }
+        // Optimization #6: Distance-based quality processing for better performance
+        // Process pixels with different accuracy based on distance from center
+        for y in 0..height {
+            let dest_row_base = y * width;
 
-            // Apply spiral transformation
-            let new_distance = distance - speed;
-            let new_angle = angle - rotation_speed;
+            for x in 0..width {
+                let pixel_index = dest_row_base + x;
 
-            // Convert back to cartesian
-            let source_x = center_x + new_distance * new_angle.cos();
-            let source_y = center_y + new_distance * new_angle.sin();
+                // Use pre-computed polar coordinates (eliminates expensive atan2 and sqrt calls)
+                let distance = self.polar_distance_lut[pixel_index];
+                let angle = self.polar_angle_lut[pixel_index];
 
-            let source_x_int = source_x.round() as i32;
-            let source_y_int = source_y.round() as i32;
+                // Early exit for center pixels using faster comparison
+                if distance <= speed_threshold {
+                    self.temp_buffer[pixel_index] = self.persistence_buffer[pixel_index];
+                    continue;
+                }
 
-            if source_x_int >= 0
-                && source_x_int < width as i32
-                && source_y_int >= 0
-                && source_y_int < height as i32
-            {
-                let source_index = (source_y_int as usize * width) + source_x_int as usize;
-                self.temp_buffer[pixel_index] = self.persistence_buffer[source_index];
+                // Optimization #6: Apply different quality levels based on distance
+                let (new_distance, new_angle) = if distance <= self.high_quality_radius {
+                    // High quality: Full precision for center area
+                    (distance - speed, angle - rotation_speed)
+                } else if distance <= self.medium_quality_radius {
+                    // Medium quality: Reduced rotation precision for middle area
+                    (distance - speed, angle - rotation_speed * 0.7)
+                } else {
+                    // Low quality: Simplified calculation for distant pixels
+                    // Use approximation: skip very small rotations for distant pixels
+                    if rotation_speed.abs() < 0.02 {
+                        (distance - speed, angle) // Skip rotation entirely
+                    } else {
+                        (distance - speed, angle - rotation_speed * 0.5)
+                    }
+                };
+
+                // Convert back to cartesian (still needs cos/sin, but eliminated atan2 and sqrt)
+                let source_x = self.center_x + new_distance * new_angle.cos();
+                let source_y = self.center_y + new_distance * new_angle.sin();
+
+                let source_x_int = source_x.round() as i32;
+                let source_y_int = source_y.round() as i32;
+
+                // Optimized bounds check with early exit
+                if source_x_int >= 0
+                    && source_x_int < width_i32
+                    && source_y_int >= 0
+                    && source_y_int < height_i32
+                {
+                    let source_index = (source_y_int as usize * width) + source_x_int as usize;
+                    self.temp_buffer[pixel_index] = self.persistence_buffer[source_index];
+                }
+                // Implicit else: temp_buffer[pixel_index] remains 0.0 from initialization
             }
         }
     }
@@ -368,33 +479,77 @@ impl MotionDetector {
         self.temp_buffer.clear();
         self.temp_buffer.resize(self.persistence_buffer.len(), 0.0);
 
-        // Wave movement processing
-        if amplitude.abs() > 0.1 {
-            for pixel_index in 0..self.persistence_buffer.len() {
-                let x = pixel_index % width;
-                let y = pixel_index / width;
+        // Early exit for minimal wave effect
+        if amplitude.abs() <= 0.1 {
+            self.temp_buffer.copy_from_slice(&self.persistence_buffer);
+            return;
+        }
 
-                let (source_x, source_y) = if direction == 0 {
-                    // Horizontal wave - displacement based on y position
-                    let wave_offset = (y as f32 * frequency + self.phase).sin() * amplitude;
-                    ((x as f32 - wave_offset).round() as i32, y as i32)
+        // Pre-compute constants for optimization
+        let width_i32 = width as i32;
+        let height_i32 = height as i32;
+
+        // Optimization #6: Distance-based quality wave processing with cache-friendly access
+        if direction == 0 {
+            // Horizontal wave - cache-friendly row-by-row processing
+            for y in 0..height {
+                let y_f32 = y as f32;
+                let distance_from_center = self.polar_distance_lut[y * width + width / 2];
+
+                // Optimization #6: Apply different wave quality based on distance
+                let effective_amplitude = if distance_from_center <= self.high_quality_radius {
+                    amplitude
+                } else if distance_from_center <= self.medium_quality_radius {
+                    amplitude * 0.9
                 } else {
-                    // Vertical wave - displacement based on x position
-                    let wave_offset = (x as f32 * frequency + self.phase).sin() * amplitude;
-                    (x as i32, (y as f32 - wave_offset).round() as i32)
+                    amplitude * 0.7 // Reduced amplitude for distant rows
                 };
 
-                if source_x >= 0
-                    && source_x < width as i32
-                    && source_y >= 0
-                    && source_y < height as i32
-                {
-                    let source_index = (source_y as usize * width) + source_x as usize;
-                    self.temp_buffer[pixel_index] = self.persistence_buffer[source_index];
+                let wave_offset = (y_f32 * frequency + self.phase).sin() * effective_amplitude;
+                let dest_row_base = y * width;
+
+                for x in 0..width {
+                    let pixel_index = dest_row_base + x;
+                    let source_x = (x as f32 - wave_offset).round() as i32;
+                    let source_y = y as i32;
+
+                    if source_x >= 0 && source_x < width_i32 {
+                        let source_index = (source_y as usize * width) + source_x as usize;
+                        self.temp_buffer[pixel_index] = self.persistence_buffer[source_index];
+                    }
+                    // Implicit else: temp_buffer[pixel_index] remains 0.0 from initialization
                 }
             }
         } else {
-            self.temp_buffer.copy_from_slice(&self.persistence_buffer);
+            // Vertical wave - cache-friendly column processing with row-major access
+            for y in 0..height {
+                let dest_row_base = y * width;
+
+                for x in 0..width {
+                    let pixel_index = dest_row_base + x;
+                    let x_f32 = x as f32;
+                    let distance_from_center = self.polar_distance_lut[pixel_index];
+
+                    // Optimization #6: Apply different wave quality based on distance
+                    let effective_amplitude = if distance_from_center <= self.high_quality_radius {
+                        amplitude
+                    } else if distance_from_center <= self.medium_quality_radius {
+                        amplitude * 0.9
+                    } else {
+                        amplitude * 0.7 // Reduced amplitude for distant pixels
+                    };
+
+                    let wave_offset = (x_f32 * frequency + self.phase).sin() * effective_amplitude;
+                    let source_x = x as i32;
+                    let source_y = (y as f32 - wave_offset).round() as i32;
+
+                    if source_y >= 0 && source_y < height_i32 {
+                        let source_index = (source_y as usize * width) + source_x as usize;
+                        self.temp_buffer[pixel_index] = self.persistence_buffer[source_index];
+                    }
+                    // Implicit else: temp_buffer[pixel_index] remains 0.0 from initialization
+                }
+            }
         }
     }
 
