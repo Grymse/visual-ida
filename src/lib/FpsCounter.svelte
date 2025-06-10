@@ -27,8 +27,8 @@
 </script>
 
 <p class="fps-counter">
-	{motionDetection.state.fps}
-	{motionDetection.state.computeTime}ms
+	<span class="fps">FPS: {motionDetection.state.fps}</span>
+	<span class="current-time">Current: {motionDetection.state.computeTime}ms</span>
 	<span class="avg-time">
 		Avg: {averageComputeTime}ms
 	</span>
@@ -45,12 +45,26 @@
 		margin: 0;
 		font-family: monospace;
 		font-size: 14px;
+		line-height: 1.4;
 	}
+
+	.fps {
+		color: cyan;
+		display: block;
+	}
+
+	.current-time {
+		color: yellow;
+		display: block;
+	}
+
 	.avg-time {
 		color: lightgreen;
+		display: block;
 	}
 
 	.max-time {
 		color: red;
+		display: block;
 	}
 </style>
