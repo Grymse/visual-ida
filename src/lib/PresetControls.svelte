@@ -5,6 +5,7 @@
 	import { Slider } from '$lib/components/ui/slider';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Input } from '$lib/components/ui/input';
+	import PresetList from '$lib/components/PresetList.svelte';
 	import { cn } from '$lib/utils';
 
 	interface Props {
@@ -28,14 +29,12 @@
 	// Local state for settings
 	let transitionDuration = $state(3000);
 	let cycleDuration = $state(30000);
-	let colorSpeed = $state(2000);
 	let colorInterval = $state(30000);
 
 	// Initialize from preset manager
 	$effect(() => {
 		transitionDuration = presetManager.transitions?.duration || 3000;
 		cycleDuration = presetManager.state.cycleInterval;
-		colorSpeed = presetManager.colorSpeed || 2000;
 		colorInterval = presetManager.colorInterval || 30000;
 	});
 
@@ -281,94 +280,15 @@
 			{/if}
 
 			<!-- Preset List -->
-			<div class="space-y-2">
-				<h3 class="text-foreground/90 text-sm font-semibold tracking-wide uppercase">Presets</h3>
-
-				{#if presetManager.presets.length === 0}
-					<div
-						class="text-muted-foreground border-border rounded-lg border-2 border-dashed p-8 text-center"
-					>
-						<svg
-							class="mx-auto mb-2 h-8 w-8 opacity-50"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-							/>
-						</svg>
-						<p class="text-sm">No presets created yet</p>
-						<p class="text-xs opacity-70">Create a preset to save your motion settings</p>
-					</div>
-				{:else}
-					<div class="space-y-2">
-						{#each presetManager.presets as preset (preset.id)}
-							<div
-								class={cn(
-									'group hover:bg-accent/50 relative cursor-pointer rounded-lg border p-3 transition-all',
-									presetManager.state.currentPresetId === preset.id
-										? 'border-primary bg-primary/5'
-										: 'border-border hover:border-border/60',
-									presetManager.state.isEditingPreset &&
-										presetManager.state.currentPresetId === preset.id &&
-										'border-yellow-500 bg-yellow-500/5'
-								)}
-								onclick={() => presetManager.applyPreset(preset.id)}
-							>
-								<div class="flex items-start justify-between">
-									<div class="flex-1">
-										{#if editingPresetId === preset.id}
-											<Input
-												bind:value={editingPresetName}
-												onkeydown={handlePresetNameKeydown}
-												onblur={savePresetName}
-												onclick={(e) => e.stopPropagation()}
-												class="mb-1 h-8 text-sm font-medium"
-												autofocus
-											/>
-										{:else}
-											<h4
-												class="text-foreground mb-1 text-sm font-medium hover:underline"
-												ondblclick={() => startEditingPresetName(preset.id, preset.name)}
-											>
-												{preset.name}
-											</h4>
-										{/if}
-										<p class="text-muted-foreground text-xs">
-											Type: {preset.options.moveType.charAt(0).toUpperCase() +
-												preset.options.moveType.slice(1)}
-										</p>
-									</div>
-
-									<Button
-										variant="ghost"
-										size="icon"
-										class="h-8 w-8 opacity-0 group-hover:opacity-100"
-										onclick={(e) => {
-											e.stopPropagation();
-											presetManager.deletePreset(preset.id);
-										}}
-										disabled={presetManager.state.isPlaying}
-									>
-										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												stroke-width="2"
-												d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-											/>
-										</svg>
-									</Button>
-								</div>
-							</div>
-						{/each}
-					</div>
-				{/if}
-			</div>
+			<PresetList
+				{presetManager}
+				bind:editingPresetId
+				bind:editingPresetName
+				onStartEditing={startEditingPresetName}
+				onSaveEdit={savePresetName}
+				onCancelEdit={cancelEditingPresetName}
+				onKeydown={handlePresetNameKeydown}
+			/>
 
 			<!-- Editing Controls -->
 			{#if presetManager.state.isEditingPreset}

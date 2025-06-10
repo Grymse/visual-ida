@@ -28,10 +28,6 @@
 			// Return current motion detection options for smooth transitions
 			return motionDetection.options;
 		},
-		(colorSpeed: number) => {
-			// Update color transition speed (placeholder for future use)
-			console.log('Color speed updated:', colorSpeed);
-		},
 		(colorInterval: number) => {
 			// Update color interval duration
 			colorFilters.intervalDuration = colorInterval;
@@ -41,6 +37,24 @@
 			}
 		}
 	);
+
+	// Add reorderPresets method if it doesn't exist
+	if (!presetManager.reorderPresets) {
+		presetManager.reorderPresets = function (fromIndex: number, toIndex: number) {
+			if (fromIndex === toIndex) return;
+
+			const presetsCopy = [...this.presets];
+			const [movedPreset] = presetsCopy.splice(fromIndex, 1);
+			presetsCopy.splice(toIndex, 0, movedPreset);
+
+			this.presets = presetsCopy;
+
+			// Save to localStorage if savePresets method exists
+			if (typeof this.savePresets === 'function') {
+				this.savePresets();
+			}
+		};
+	}
 
 	// Watch for changes in motion options to detect unsaved changes
 	$effect(() => {
@@ -205,7 +219,7 @@
 		: 'none'};"
 ></canvas>
 
-<AutoHideUI hideAfterMs={5000} startHidden>
+<AutoHideUI hideAfterMs={10000}>
 	<FpsCounter {motionDetection} />
 
 	<PresetControls

@@ -19,7 +19,6 @@ export class PresetManager {
 	private cycleTimeout: ReturnType<typeof setTimeout> | null = null;
 	private transitionManager: PresetTransitionManager;
 	private getCurrentOptionsCallback?: () => MotionDetectionOptions;
-	private onColorSpeedChangeCallback?: (speed: number) => void;
 	private colorTransitionSpeed = 2000; // Default 2 seconds
 	private onColorIntervalChangeCallback?: (interval: number) => void;
 	private colorIntervalDuration = 30000; // Default 30 seconds
@@ -27,11 +26,9 @@ export class PresetManager {
 	constructor(
 		onPresetChange?: (options: MotionDetectionOptions) => void,
 		getCurrentOptions?: () => MotionDetectionOptions,
-		onColorSpeedChange?: (speed: number) => void,
 		onColorIntervalChange?: (interval: number) => void
 	) {
 		this.getCurrentOptionsCallback = getCurrentOptions;
-		this.onColorSpeedChangeCallback = onColorSpeedChange;
 		this.onColorIntervalChangeCallback = onColorIntervalChange;
 		this.transitionManager = new PresetTransitionManager(
 			onPresetChange,
@@ -402,6 +399,29 @@ export class PresetManager {
 		if (!this._state.isPlaying) return 0;
 		const elapsed = Date.now() - this._state.lastCycleTime;
 		return Math.max(0, this._state.cycleInterval - elapsed);
+	}
+
+	// Reorder presets (for drag and drop functionality)
+	reorderPresets(fromIndex: number, toIndex: number): void {
+		if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+		if (fromIndex >= this._presets.length || toIndex >= this._presets.length) return;
+
+		// Create a new array to ensure reactivity
+		const newPresets = [...this._presets];
+		
+		// Remove the preset from the original position
+		const [movedPreset] = newPresets.splice(fromIndex, 1);
+		
+		// Insert it at the new position
+		newPresets.splice(toIndex, 0, movedPreset);
+		
+		// Update the presets array to trigger reactivity
+		this._presets = newPresets;
+		
+		// Save to localStorage
+		this.savePresets();
+		
+		console.log(`Reordered preset "${movedPreset.name}" from index ${fromIndex} to ${toIndex}`);
 	}
 
 	// Cleanup
