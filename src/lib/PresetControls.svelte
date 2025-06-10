@@ -12,15 +12,20 @@
 		presetManager: PresetManager;
 		onCreatePreset: (name: string) => void;
 		currentMotionOptions: MotionDetectionOptions;
+		showControls?: boolean;
 	}
 
-	let { presetManager, onCreatePreset, currentMotionOptions }: Props = $props();
+	let {
+		presetManager,
+		onCreatePreset,
+		currentMotionOptions,
+		showControls = $bindable(false)
+	}: Props = $props();
 
 	let newPresetName = $state('');
 	let newPresetDescription = $state('');
 	let showCreateDialog = $state(false);
 	let showSettingsDialog = $state(false);
-	let showControls = $state(false);
 
 	// Inline editing state
 	let editingPresetId = $state<string | null>(null);

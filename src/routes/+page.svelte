@@ -15,6 +15,8 @@
 	let errorMessage: string | null = $state(null);
 	let isLoading = $state(true);
 	let startOn = true;
+	let showPresetControls = $state(false);
+	let showMotionFilters = $state(false);
 	const motionDetection = new MotionDetection();
 	const colorFilters = new ColorFilters();
 
@@ -207,12 +209,17 @@
 ></canvas>
 
 <AutoHideUI hideAfterMs={10000}>
-	<FpsCounter {motionDetection} />
+	<FpsCounter
+		{motionDetection}
+		isPresetMenuOpen={showPresetControls}
+		isMotionMenuOpen={showMotionFilters}
+	/>
 
 	<PresetControls
 		{presetManager}
 		onCreatePreset={createPresetFromCurrentSettings}
 		currentMotionOptions={motionDetection.options}
+		bind:showControls={showPresetControls}
 	/>
 
 	<MotionDetectionControls
@@ -220,6 +227,7 @@
 		{toggleMotionDetection}
 		motionDetectionOptions={motionDetection.options}
 		{presetManager}
+		bind:showFilters={showMotionFilters}
 	/>
 </AutoHideUI>
 

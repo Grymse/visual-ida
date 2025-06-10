@@ -11,16 +11,17 @@
 		toggleMotionDetection?: () => void;
 		motionDetectionOptions: MotionDetectionOptions;
 		presetManager: PresetManager;
+		showFilters?: boolean;
 	}
 
 	let {
 		isMotionDetectionActive = false,
 		toggleMotionDetection = () => {},
 		motionDetectionOptions = $bindable<MotionDetectionOptions>(),
-		presetManager
+		presetManager,
+		showFilters = $bindable(false)
 	}: Props = $props();
 
-	let showFilters = $state(false);
 	let showCyclingMessage = $state(false);
 
 	function handleToggleFilters() {
