@@ -205,7 +205,7 @@
 		: 'none'};"
 ></canvas>
 
-<AutoHideUI hideAfterMs={10000} startHidden>
+<AutoHideUI hideAfterMs={5000} startHidden>
 	<FpsCounter {motionDetection} />
 
 	<PresetControls

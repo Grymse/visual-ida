@@ -15,6 +15,10 @@
 	let showCreateDialog = $state(false);
 	let showSettingsDialog = $state(false);
 
+	// Inline editing state
+	let editingPresetId = $state<string | null>(null);
+	let editingPresetName = $state('');
+
 	// Local state for settings
 	let transitionDuration = $state(3000); // 3 seconds default
 	let cycleDuration = $state(30000); // 30 seconds default
@@ -71,8 +75,7 @@
 	function handleSaveAsNew() {
 		// Generate a name based on current preset + timestamp
 		const baseName = presetManager.currentPreset?.name || 'Preset';
-		const timestamp = new Date().toLocaleString();
-		const newName = `${baseName} - ${timestamp}`;
+		const newName = `new ${baseName}`;
 
 		presetManager.createPresetFromCurrent?.(newName, currentMotionOptions);
 	}
@@ -84,6 +87,34 @@
 	function formatTimeRemaining(ms: number): string {
 		const seconds = Math.ceil(ms / 1000);
 		return `${seconds}s`;
+	}
+
+	// Inline editing functions
+	function startEditingPresetName(presetId: string, currentName: string) {
+		editingPresetId = presetId;
+		editingPresetName = currentName;
+	}
+
+	function savePresetName() {
+		if (editingPresetId && editingPresetName.trim()) {
+			presetManager.updatePresetName(editingPresetId, editingPresetName.trim());
+		}
+		cancelEditingPresetName();
+	}
+
+	function cancelEditingPresetName() {
+		editingPresetId = null;
+		editingPresetName = '';
+	}
+
+	function handlePresetNameKeydown(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			event.preventDefault();
+			savePresetName();
+		} else if (event.key === 'Escape') {
+			event.preventDefault();
+			cancelEditingPresetName();
+		}
 	}
 
 	let timeRemaining = $state(0);
@@ -140,7 +171,7 @@
 	{#if presetManager.state.hasUnsavedChanges && presetManager.currentPreset}
 		<div class="unsaved-changes-banner">
 			<div class="unsaved-info">
-				<strong>Unsaved Changes</strong>
+				<strong>Save Changes</strong>
 			</div>
 			<div class="save-actions">
 				<button class="reset-btn" onclick={handleDiscardChanges}> Reset </button>
@@ -160,7 +191,21 @@
 				onclick={() => presetManager.applyPreset(preset.id)}
 			>
 				<div class="preset-info">
-					<h4>{preset.name}</h4>
+					{#if editingPresetId === preset.id}
+						<input
+							type="text"
+							bind:value={editingPresetName}
+							onkeydown={handlePresetNameKeydown}
+							onblur={savePresetName}
+							class="preset-name-input"
+							onclick={(e) => e.stopPropagation()}
+							autofocus
+						/>
+					{:else}
+						<h4 ondblclick={() => startEditingPresetName(preset.id, preset.name)}>
+							{preset.name}
+						</h4>
+					{/if}
 					<span class="move-type">Type: {preset.options.moveType}</span>
 				</div>
 
@@ -459,6 +504,33 @@
 	.preset-info h4 {
 		margin: 0 0 4px 0;
 		font-size: 14px;
+		cursor: pointer;
+		user-select: none;
+		padding: 2px 4px;
+		border-radius: 3px;
+		transition: background-color 0.2s;
+	}
+
+	.preset-info h4:hover {
+		background: rgba(255, 255, 255, 0.1);
+	}
+
+	.preset-name-input {
+		width: 100%;
+		background: rgba(255, 255, 255, 0.1);
+		border: 1px solid #3b82f6;
+		border-radius: 3px;
+		padding: 2px 4px;
+		font-size: 14px;
+		font-weight: bold;
+		color: white;
+		margin: 0 0 4px 0;
+	}
+
+	.preset-name-input:focus {
+		outline: none;
+		border-color: #60a5fa;
+		box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
 	}
 
 	.preset-actions {

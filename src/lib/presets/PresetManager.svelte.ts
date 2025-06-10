@@ -153,6 +153,11 @@ export class PresetManager {
 		return true;
 	}
 
+	// Update just the name of a preset
+	updatePresetName(id: string, name: string): boolean {
+		return this.updatePreset(id, { name: name.trim() });
+	}
+
 	// Delete a preset
 	deletePreset(id: string): boolean {
 		const initialLength = this._presets.length;
