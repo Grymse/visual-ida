@@ -1,5 +1,4 @@
-- Look into optimizing the two most intensive filters
-- Make UI hide itself
+
 - Fix "Save unsaved changes" thing
 - Fix camera fucking up on phones
 

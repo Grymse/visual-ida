@@ -4,6 +4,7 @@
 	import FpsCounter from '$lib/FpsCounter.svelte';
 	import PresetControls from '$lib/PresetControls.svelte';
 	import MotionDetection from '$lib/MotionDetection.svelte';
+	import AutoHideUI from '$lib/AutoHideUI.svelte';
 	import { AnimateAngleChange } from '$lib/AnimateAngleChange.svelte';
 	import { ColorFilters } from '$lib/ColorFilters.svelte';
 	import { PresetManager } from '$lib/presets/PresetManager.svelte';
@@ -170,7 +171,7 @@
 </script>
 
 <svelte:head>
-	<title>Psychic Visualization</title>
+	<title>Psychedelic Visualization</title>
 </svelte:head>
 
 {#if isLoading}
@@ -204,19 +205,21 @@
 		: 'none'};"
 ></canvas>
 
-<FpsCounter {motionDetection} />
+<AutoHideUI hideAfterMs={10000} startHidden>
+	<FpsCounter {motionDetection} />
 
-<PresetControls
-	{presetManager}
-	onCreatePreset={createPresetFromCurrentSettings}
-	currentMotionOptions={motionDetection.options}
-/>
+	<PresetControls
+		{presetManager}
+		onCreatePreset={createPresetFromCurrentSettings}
+		currentMotionOptions={motionDetection.options}
+	/>
 
-<MotionDetectionControls
-	isMotionDetectionActive={motionDetection.state.isActive}
-	{toggleMotionDetection}
-	motionDetectionOptions={motionDetection.options}
-/>
+	<MotionDetectionControls
+		isMotionDetectionActive={motionDetection.state.isActive}
+		{toggleMotionDetection}
+		motionDetectionOptions={motionDetection.options}
+	/>
+</AutoHideUI>
 
 <style>
 	:global(html, body) {
