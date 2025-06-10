@@ -2,7 +2,7 @@
 	import type { MotionDetectionOptions } from './MotionDetection.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Slider } from '$lib/components/ui/slider';
-	import * as Select from '$lib/components/ui/select/index.js';
+	import * as Select from '$lib/components/ui/select';
 	import { cn } from '$lib/utils';
 
 	interface Props {
@@ -21,6 +21,54 @@
 
 	function toggleFiltersPanel() {
 		showFilters = !showFilters;
+	}
+
+	function handleMovementAngleChange(value: number[]) {
+		motionDetectionOptions.movementAngle = value[0];
+	}
+
+	function handleMovementSpeedChange(value: number[]) {
+		motionDetectionOptions.movementSpeed = value[0];
+	}
+
+	function handleMotionDecayRateChange(value: number[]) {
+		motionDetectionOptions.motionDecayRate = value[0];
+	}
+
+	function handleMotionThresholdChange(value: number[]) {
+		motionDetectionOptions.motionThreshold = value[0];
+	}
+
+	function handleMoveTypeChange(
+		value: { value: string; label?: string; disabled?: boolean } | undefined
+	) {
+		if (value) {
+			motionDetectionOptions.moveType = value.value as 'direction' | 'radial' | 'spiral' | 'wave';
+		}
+	}
+
+	function handleRotationSpeedChange(value: number[]) {
+		motionDetectionOptions.rotationSpeed = value[0];
+	}
+
+	function handleWaveAmplitudeChange(value: number[]) {
+		motionDetectionOptions.waveAmplitude = value[0];
+	}
+
+	function handleWaveFrequencyChange(value: number[]) {
+		motionDetectionOptions.waveFrequency = value[0];
+	}
+
+	function handleWavePhaseChange(value: number[]) {
+		motionDetectionOptions.wavePhase = value[0];
+	}
+
+	function handleWaveDirectionChange(
+		value: { value: string; label?: string; disabled?: boolean } | undefined
+	) {
+		if (value) {
+			motionDetectionOptions.waveDirection = parseInt(value.value) as 0 | 1;
+		}
 	}
 </script>
 
@@ -101,16 +149,25 @@
 						<!-- Move Type Selector -->
 						<div class="space-y-2">
 							<label class="text-muted-foreground text-xs font-medium">Effect Type</label>
-							<Select.Root type="single" bind:value={motionDetectionOptions.moveType}>
+							<Select.Root
+								selected={{
+									value: motionDetectionOptions.moveType,
+									label:
+										motionDetectionOptions.moveType.charAt(0).toUpperCase() +
+										motionDetectionOptions.moveType.slice(1)
+								}}
+								onSelectedChange={handleMoveTypeChange}
+							>
 								<Select.Trigger class="w-full">
-									{motionDetectionOptions.moveType.charAt(0).toUpperCase() +
-										motionDetectionOptions.moveType.slice(1)}
+									<Select.Value placeholder="Select effect type" />
 								</Select.Trigger>
 								<Select.Content>
-									<Select.Item value="direction">Directional</Select.Item>
-									<Select.Item value="radial">Radial</Select.Item>
-									<Select.Item value="spiral">Spiral</Select.Item>
-									<Select.Item value="wave">Wave</Select.Item>
+									<Select.Group>
+										<Select.Item value="direction" label="Directional">Directional</Select.Item>
+										<Select.Item value="radial" label="Radial">Radial</Select.Item>
+										<Select.Item value="spiral" label="Spiral">Spiral</Select.Item>
+										<Select.Item value="wave" label="Wave">Wave</Select.Item>
+									</Select.Group>
 								</Select.Content>
 							</Select.Root>
 						</div>
@@ -124,8 +181,8 @@
 									>
 								</label>
 								<Slider
-									type="single"
-									bind:value={motionDetectionOptions.movementAngle}
+									value={[motionDetectionOptions.movementAngle]}
+									onValueChange={handleMovementAngleChange}
 									min={0}
 									max={360}
 									step={1}
@@ -143,8 +200,8 @@
 									>
 								</label>
 								<Slider
-									type="single"
-									bind:value={motionDetectionOptions.movementSpeed}
+									value={[motionDetectionOptions.movementSpeed]}
+									onValueChange={handleMovementSpeedChange}
 									min={-30}
 									max={100}
 									step={1}
@@ -162,8 +219,8 @@
 									>
 								</label>
 								<Slider
-									type="single"
-									bind:value={motionDetectionOptions.rotationSpeed}
+									value={[motionDetectionOptions.rotationSpeed]}
+									onValueChange={handleRotationSpeedChange}
 									min={-3.14}
 									max={3.14}
 									step={0.001}
@@ -182,8 +239,8 @@
 										>
 									</label>
 									<Slider
-										type="single"
-										bind:value={motionDetectionOptions.waveAmplitude}
+										value={[motionDetectionOptions.waveAmplitude]}
+										onValueChange={handleWaveAmplitudeChange}
 										min={0}
 										max={500}
 										step={0.1}
@@ -197,8 +254,8 @@
 										>
 									</label>
 									<Slider
-										type="single"
-										bind:value={motionDetectionOptions.waveFrequency}
+										value={[motionDetectionOptions.waveFrequency]}
+										onValueChange={handleWaveFrequencyChange}
 										min={0.001}
 										max={2}
 										step={0.001}
@@ -212,8 +269,8 @@
 										>
 									</label>
 									<Slider
-										type="single"
-										bind:value={motionDetectionOptions.wavePhase}
+										value={[motionDetectionOptions.wavePhase]}
+										onValueChange={handleWavePhaseChange}
 										min={0}
 										max={6.28}
 										step={0.01}
@@ -222,15 +279,21 @@
 								</div>
 								<div class="space-y-2">
 									<label class="text-muted-foreground text-xs font-medium">Direction</label>
-									<Select.Root type="single" bind:value={motionDetectionOptions.waveDirection}>
-										<Select.Trigger class="w-full"
-											>{motionDetectionOptions.waveDirection === 0
-												? 'Horizontal'
-												: 'Vertical'}</Select.Trigger
-										>
+									<Select.Root
+										selected={{
+											value: motionDetectionOptions.waveDirection.toString(),
+											label: motionDetectionOptions.waveDirection === 0 ? 'Horizontal' : 'Vertical'
+										}}
+										onSelectedChange={handleWaveDirectionChange}
+									>
+										<Select.Trigger class="w-full">
+											<Select.Value placeholder="Select direction" />
+										</Select.Trigger>
 										<Select.Content>
-											<Select.Item value={0}>Horizontal</Select.Item>
-											<Select.Item value={1}>Vertical</Select.Item>
+											<Select.Group>
+												<Select.Item value="0" label="Horizontal">Horizontal</Select.Item>
+												<Select.Item value="1" label="Vertical">Vertical</Select.Item>
+											</Select.Group>
 										</Select.Content>
 									</Select.Root>
 								</div>
@@ -251,8 +314,8 @@
 								>
 							</label>
 							<Slider
-								type="single"
-								bind:value={motionDetectionOptions.motionDecayRate}
+								value={[motionDetectionOptions.motionDecayRate]}
+								onValueChange={handleMotionDecayRateChange}
 								min={0.1}
 								max={0.99}
 								step={0.01}
@@ -267,8 +330,8 @@
 								>
 							</label>
 							<Slider
-								type="single"
-								bind:value={motionDetectionOptions.motionThreshold}
+								value={[motionDetectionOptions.motionThreshold]}
+								onValueChange={handleMotionThresholdChange}
 								min={1}
 								max={100}
 								step={1}
